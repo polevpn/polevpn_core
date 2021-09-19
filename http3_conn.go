@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/polevpn/h3conn"
 )
@@ -43,7 +44,7 @@ func (h3c *Http3Conn) Connect(endpoint string, user string, pwd string, ip strin
 
 	var err error
 
-	conn, resp, err := h3conn.Connect(endpoint + "?user=" + url.QueryEscape(user) + "&pwd=" + url.QueryEscape(pwd) + "&ip=" + ip)
+	conn, resp, err := h3conn.Connect(endpoint+"?user="+url.QueryEscape(user)+"&pwd="+url.QueryEscape(pwd)+"&ip="+ip, time.Second*HTTP3_HANDSHAKE_TIMEOUT)
 
 	if err != nil {
 		if resp != nil {
@@ -75,7 +76,7 @@ func (h3c *Http3Conn) Close(flag bool) error {
 	h3c.mutex.Lock()
 	defer h3c.mutex.Unlock()
 
-	if h3c.closed == false {
+	if !h3c.closed {
 		h3c.closed = true
 		if h3c.wch != nil {
 			h3c.wch <- nil
@@ -122,7 +123,7 @@ func (h3c *Http3Conn) read() {
 		for {
 			n, err := h3c.conn.Read(prefetch[preOffset:])
 			if err != nil {
-				if err == io.EOF || strings.Index(err.Error(), "use of closed network connection") > -1 {
+				if err == io.EOF || strings.Contains(err.Error(), "use of closed network connection") {
 					plog.Info(h3c.String(), "conn closed")
 				} else {
 					plog.Error(h3c.String(), "conn read exception:", err)
@@ -148,7 +149,7 @@ func (h3c *Http3Conn) read() {
 		for {
 			n, err := h3c.conn.Read(pkt[offset:])
 			if err != nil {
-				if err == io.EOF || strings.Index(err.Error(), "use of closed network connection") > -1 {
+				if err == io.EOF || strings.Contains(err.Error(), "use of closed network connection") {
 					plog.Info(h3c.String(), "conn closed")
 				} else {
 					plog.Error(h3c.String(), "conn read exception:", err)
@@ -207,7 +208,7 @@ func (h3c *Http3Conn) write() {
 }
 
 func (h3c *Http3Conn) Send(pkt []byte) {
-	if h3c.IsClosed() == true {
+	if h3c.IsClosed() {
 		plog.Debug("websocket connection is closed,can't send pkt")
 		return
 	}
