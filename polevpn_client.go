@@ -63,7 +63,6 @@ type PoleVpnClient struct {
 	lasttimeHeartbeat time.Time
 	reconnecting      bool
 	wg                *sync.WaitGroup
-	mode              bool
 	device            *TunDevice
 	handler           func(int, *PoleVpnClient, *anyvalue.AnyValue)
 	host              string
@@ -104,10 +103,6 @@ func (pc *PoleVpnClient) AttachTunDevice(device *TunDevice) {
 
 func (pc *PoleVpnClient) SetEventHandler(handler func(int, *PoleVpnClient, *anyvalue.AnyValue)) {
 	pc.handler = handler
-}
-
-func (pc *PoleVpnClient) SetRouteMode(mode bool) {
-	pc.mode = mode
 }
 
 func (pc *PoleVpnClient) Start(endpoint string, user string, pwd string, sni string, verifySSL bool) error {
