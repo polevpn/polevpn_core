@@ -1,8 +1,9 @@
 package core
 
+import "net/http"
+
 type Conn interface {
-	SetLocalIP(string)
-	Connect(endpoint string, user string, pwd string, ip string, sni string, skipVerifySSL bool) error
+	Connect(endpoint string, user string, pwd string, ip string, sni string, skipVerifySSL bool, header http.Header) error
 	Close(flag bool) error
 	String() string
 	IsClosed() bool

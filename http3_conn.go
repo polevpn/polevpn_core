@@ -19,12 +19,13 @@ const (
 )
 
 type Http3Conn struct {
-	conn    *h3conn.Conn
-	wch     chan []byte
-	closed  bool
-	handler map[uint16]func(PolePacket, Conn)
-	mutex   *sync.Mutex
-	localip string
+	conn     *h3conn.Conn
+	wch      chan []byte
+	closed   bool
+	handler  map[uint16]func(PolePacket, Conn)
+	mutex    *sync.Mutex
+	localip  string
+	remoteip string
 }
 
 func NewHttp3Conn() *Http3Conn {
@@ -37,11 +38,7 @@ func NewHttp3Conn() *Http3Conn {
 	}
 }
 
-func (h3c *Http3Conn) SetLocalIP(ip string) {
-	h3c.localip = ip
-}
-
-func (h3c *Http3Conn) Connect(endpoint string, user string, pwd string, ip string, sni string, skipVerifySSL bool) error {
+func (h3c *Http3Conn) Connect(endpoint string, user string, pwd string, ip string, sni string, skipVerifySSL bool, header http.Header) error {
 
 	var err error
 
@@ -52,7 +49,7 @@ func (h3c *Http3Conn) Connect(endpoint string, user string, pwd string, ip strin
 
 	client := h3conn.NewClient(tlsconfig)
 
-	conn, resp, err := client.Connect(endpoint+"?user="+url.QueryEscape(user)+"&pwd="+url.QueryEscape(pwd)+"&ip="+ip, time.Second*HTTP3_HANDSHAKE_TIMEOUT)
+	conn, resp, err := client.Connect(endpoint+"?user="+url.QueryEscape(user)+"&pwd="+url.QueryEscape(pwd)+"&ip="+ip, time.Second*HTTP3_HANDSHAKE_TIMEOUT, header)
 
 	if err != nil {
 		if resp != nil {

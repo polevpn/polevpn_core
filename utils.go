@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
-	"errors"
 	"net"
+	"net/url"
 	"os"
 	"runtime/debug"
 )
@@ -26,21 +26,30 @@ func PanicHandlerExit() {
 	}
 }
 
-func GetLocalIp() (string, error) {
+func GetRemoteIPByEndpoint(endpoint string) (string, error) {
+	u, err := url.Parse(endpoint)
 
-	addrs, err := net.InterfaceAddrs()
 	if err != nil {
 		return "", err
-	} else {
-		for _, address := range addrs {
-			if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-				if ipnet.IP.To4() != nil {
-					return ipnet.IP.String(), nil
-				}
-			}
-		}
 	}
-	return "", errors.New("can't get local ip")
+
+	addr, err := net.ResolveIPAddr("ip", u.Hostname())
+
+	if err != nil {
+		return "", err
+	}
+
+	return addr.String(), nil
+}
+
+func GetHostByEndpoint(endpoint string) (string, error) {
+	u, err := url.Parse(endpoint)
+
+	if err != nil {
+		return "", err
+	}
+
+	return u.Hostname(), nil
 }
 
 var AesKey = []byte{0x15, 0xfc, 0xf2, 0x66, 0x78, 0x10, 0x5a, 0x34, 0xef, 0x5e, 0xac, 0xcb, 0x6f, 0x78, 0x53, 0xdc}

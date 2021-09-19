@@ -2,7 +2,7 @@ package core
 
 import (
 	"errors"
-	"net/url"
+	"net/http"
 	"strconv"
 	"strings"
 	"sync"
@@ -60,6 +60,7 @@ type PoleVpnClient struct {
 	verifySSL         bool
 	allocip           string
 	localip           string
+	remoteip          string
 	lasttimeHeartbeat time.Time
 	reconnecting      bool
 	wg                *sync.WaitGroup
@@ -105,6 +106,10 @@ func (pc *PoleVpnClient) SetEventHandler(handler func(int, *PoleVpnClient, *anyv
 	pc.handler = handler
 }
 
+func (pc *PoleVpnClient) GetRemoteIP() string {
+	return pc.remoteip
+}
+
 func (pc *PoleVpnClient) Start(endpoint string, user string, pwd string, sni string, verifySSL bool) error {
 
 	pc.mutex.Lock()
@@ -123,9 +128,15 @@ func (pc *PoleVpnClient) Start(endpoint string, user string, pwd string, sni str
 	pc.verifySSL = verifySSL
 	var err error
 
-	u, _ := url.Parse(endpoint)
+	pc.host, err = GetHostByEndpoint(endpoint)
+	if err != nil {
+		return err
+	}
+	pc.remoteip, err = GetRemoteIPByEndpoint(endpoint)
 
-	pc.host = u.Host
+	if err != nil {
+		return err
+	}
 
 	if strings.HasPrefix(endpoint, "wss://") {
 		pc.conn = NewWebSocketConn()
@@ -136,10 +147,12 @@ func (pc *PoleVpnClient) Start(endpoint string, user string, pwd string, sni str
 		return errors.New("invalid protocol")
 	}
 
-	pc.conn.SetLocalIP(pc.localip)
-	pc.endpoint = endpoint
+	pc.endpoint = strings.Replace(endpoint, pc.host, pc.remoteip, -1)
 
-	err = pc.conn.Connect(endpoint, user, pwd, "", sni, verifySSL)
+	header := http.Header{}
+	header.Add("Host", pc.host)
+
+	err = pc.conn.Connect(endpoint, user, pwd, "", sni, verifySSL, header)
 	if err != nil {
 		if err == ErrLoginVerify {
 			if pc.handler != nil {
@@ -171,13 +184,6 @@ func (pc *PoleVpnClient) Start(endpoint string, user string, pwd string, sni str
 	}
 	pc.wg.Add(1)
 	return nil
-}
-
-func (pc *PoleVpnClient) SetLocalIP(ip string) {
-	if pc.conn != nil {
-		pc.conn.SetLocalIP(ip)
-	}
-	pc.localip = ip
 }
 
 func (pc *PoleVpnClient) CloseConnect(flag bool) {
@@ -290,7 +296,10 @@ func (pc *PoleVpnClient) reconnect() {
 		if pc.handler != nil {
 			pc.handler(CLIENT_EVENT_RECONNECTING, pc, nil)
 		}
-		err := pc.conn.Connect(pc.endpoint, pc.user, pc.pwd, pc.allocip, pc.sni, pc.verifySSL)
+
+		header := http.Header{}
+		header.Add("Host", pc.host)
+		err := pc.conn.Connect(pc.endpoint, pc.user, pc.pwd, pc.allocip, pc.sni, pc.verifySSL, header)
 
 		if pc.state == POLE_CLIENT_CLOSED {
 			break

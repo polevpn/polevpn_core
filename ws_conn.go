@@ -26,12 +26,13 @@ var ErrConnectUnknown = errors.New("server unknown error")
 var ErrNetwork = errors.New("network error")
 
 type WebSocketConn struct {
-	conn    *websocket.Conn
-	wch     chan []byte
-	closed  bool
-	handler map[uint16]func(PolePacket, Conn)
-	mutex   *sync.Mutex
-	localip string
+	conn     *websocket.Conn
+	wch      chan []byte
+	closed   bool
+	handler  map[uint16]func(PolePacket, Conn)
+	mutex    *sync.Mutex
+	localip  string
+	remoteip string
 }
 
 func NewWebSocketConn() *WebSocketConn {
@@ -44,11 +45,7 @@ func NewWebSocketConn() *WebSocketConn {
 	}
 }
 
-func (wsc *WebSocketConn) SetLocalIP(ip string) {
-	wsc.localip = ip
-}
-
-func (wsc *WebSocketConn) Connect(endpoint string, user string, pwd string, ip string, sni string, skipVerifySSL bool) error {
+func (wsc *WebSocketConn) Connect(endpoint string, user string, pwd string, ip string, sni string, skipVerifySSL bool, header http.Header) error {
 
 	var err error
 
@@ -63,7 +60,7 @@ func (wsc *WebSocketConn) Connect(endpoint string, user string, pwd string, ip s
 		EnableCompression: false,
 	}
 
-	conn, resp, err := d.Dial(endpoint+"?user="+url.QueryEscape(user)+"&pwd="+url.QueryEscape(pwd)+"&ip="+ip, nil)
+	conn, resp, err := d.Dial(endpoint+"?user="+url.QueryEscape(user)+"&pwd="+url.QueryEscape(pwd)+"&ip="+ip, header)
 
 	if err != nil {
 		if resp != nil {
