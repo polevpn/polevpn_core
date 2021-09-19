@@ -14,10 +14,6 @@ const (
 	MTU            = 1500
 )
 
-var (
-	mode = false
-)
-
 type TunIO struct {
 	device  *TunDevice
 	wch     chan []byte
