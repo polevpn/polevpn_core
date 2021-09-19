@@ -1,4 +1,4 @@
-module github.com/polepvn/polevpn_core
+module github.com/polevpn/polevpn_core
 
 go 1.16
 
