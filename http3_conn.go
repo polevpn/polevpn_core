@@ -124,9 +124,9 @@ func (h3c *Http3Conn) read() {
 			n, err := h3c.conn.Read(prefetch[preOffset:])
 			if err != nil {
 				if err == io.EOF || strings.Contains(err.Error(), "use of closed network connection") {
-					plog.Info(h3c.String(), "conn closed")
+					plog.Info(h3c.String(), " conn closed")
 				} else {
-					plog.Error(h3c.String(), "conn read exception:", err)
+					plog.Error(h3c.String(), " conn read exception:", err)
 				}
 				return
 			}
@@ -150,9 +150,9 @@ func (h3c *Http3Conn) read() {
 			n, err := h3c.conn.Read(pkt[offset:])
 			if err != nil {
 				if err == io.EOF || strings.Contains(err.Error(), "use of closed network connection") {
-					plog.Info(h3c.String(), "conn closed")
+					plog.Info(h3c.String(), " conn closed")
 				} else {
-					plog.Error(h3c.String(), "conn read exception:", err)
+					plog.Error(h3c.String(), " conn read exception:", err)
 				}
 				return
 			}
@@ -196,9 +196,9 @@ func (h3c *Http3Conn) write() {
 				_, err := h3c.conn.Write(pkt)
 				if err != nil {
 					if err == io.EOF || err == io.ErrUnexpectedEOF {
-						plog.Info(h3c.String(), "conn closed")
+						plog.Info(h3c.String(), " conn closed")
 					} else {
-						plog.Error(h3c.String(), "conn write exception:", err)
+						plog.Error(h3c.String(), " conn write exception:", err)
 					}
 					return
 				}

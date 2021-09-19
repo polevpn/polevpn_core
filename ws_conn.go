@@ -1,11 +1,9 @@
 package core
 
 import (
-	"context"
 	"crypto/tls"
 	"errors"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -52,35 +50,14 @@ func (wsc *WebSocketConn) SetLocalIP(ip string) {
 
 func (wsc *WebSocketConn) Connect(endpoint string, user string, pwd string, ip string, sni string) error {
 
-	localip := wsc.localip
 	var err error
-	var laddr *net.TCPAddr
-	if localip != "" {
-		laddr, _ = net.ResolveTCPAddr("tcp4", localip+":0")
-	}
 
 	tlsconfig := &tls.Config{
 		InsecureSkipVerify: true,
 		ServerName:         sni,
 	}
 
-	netDialer := net.Dialer{LocalAddr: laddr}
-
-	netDialContext := func(ctx context.Context, network, addr string) (net.Conn, error) {
-		conn, err := netDialer.DialContext(ctx, network, addr)
-		if err == nil {
-			tcpconn := conn.(*net.TCPConn)
-			tcpconn.SetNoDelay(true)
-			tcpconn.SetKeepAlive(true)
-			tcpconn.SetWriteBuffer(WEBSOCKET_TCP_WRITE_BUFFER_SIZE)
-			tcpconn.SetReadBuffer(WEBSOCKET_TCP_READ_BUFFER_SIZE)
-			tcpconn.SetKeepAlivePeriod(time.Second * 15)
-		}
-		return conn, err
-	}
-
 	d := websocket.Dialer{
-		NetDialContext:    netDialContext,
 		TLSClientConfig:   tlsconfig,
 		HandshakeTimeout:  time.Second * WEBSOCKET_HANDSHAKE_TIMEOUT,
 		EnableCompression: false,
@@ -115,7 +92,7 @@ func (wsc *WebSocketConn) Close(flag bool) error {
 	wsc.mutex.Lock()
 	defer wsc.mutex.Unlock()
 
-	if wsc.closed == false {
+	if !wsc.closed {
 		wsc.closed = true
 		if wsc.wch != nil {
 			wsc.wch <- nil
@@ -157,10 +134,10 @@ func (wsc *WebSocketConn) read() {
 	for {
 		mtype, pkt, err := wsc.conn.ReadMessage()
 		if err != nil {
-			if err == io.EOF || strings.Index(err.Error(), "use of closed network connection") > -1 {
-				plog.Info(wsc.String(), "conn closed")
+			if err == io.EOF || strings.Contains(err.Error(), "use of closed network connection") {
+				plog.Info(wsc.String(), " conn closed")
 			} else {
-				plog.Error(wsc.String(), "conn read exception:", err)
+				plog.Error(wsc.String(), " conn read exception:", err)
 			}
 			return
 		}
@@ -202,9 +179,9 @@ func (wsc *WebSocketConn) write() {
 				err := wsc.conn.WriteMessage(websocket.BinaryMessage, pkt)
 				if err != nil {
 					if err == io.EOF || err == io.ErrUnexpectedEOF {
-						plog.Info(wsc.String(), "conn closed")
+						plog.Info(wsc.String(), " conn closed")
 					} else {
-						plog.Error(wsc.String(), "conn write exception:", err)
+						plog.Error(wsc.String(), " conn write exception:", err)
 					}
 					return
 				}
@@ -214,7 +191,7 @@ func (wsc *WebSocketConn) write() {
 }
 
 func (wsc *WebSocketConn) Send(pkt []byte) {
-	if wsc.IsClosed() == true {
+	if wsc.IsClosed() {
 		plog.Debug("websocket connection is closed,can't send pkt")
 		return
 	}

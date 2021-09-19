@@ -235,7 +235,7 @@ func (pc *PoleVpnClient) handlerAllocAdressRespose(pkt PolePacket, conn Conn) {
 	av, err := anyvalue.NewFromJson(pkt.Payload())
 
 	if err != nil {
-		plog.Error("alloc address av decode fail", err)
+		plog.Error("alloc address av decode fail,", err)
 		pc.Stop()
 		return
 	}
@@ -360,7 +360,7 @@ func (pc *PoleVpnClient) HeartBeat() {
 		}
 		timeNow := time.Now()
 		if timeNow.Sub(pc.lasttimeHeartbeat) > time.Second*HEART_BEAT_INTERVAL*WEBSOCKET_NO_HEARTBEAT_TIMES {
-			plog.Error("have not recevied heartbeat for", WEBSOCKET_NO_HEARTBEAT_TIMES, "times,close connection and reconnet")
+			plog.Error("have not recevied heartbeat for ", WEBSOCKET_NO_HEARTBEAT_TIMES, " times,close connection and reconnet")
 			pc.conn.Close(true)
 			pc.lasttimeHeartbeat = timeNow
 			continue

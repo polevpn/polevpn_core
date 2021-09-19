@@ -47,7 +47,7 @@ func (t *TunIO) AttachDevice(device *TunDevice) {
 
 func (t *TunIO) Close() error {
 
-	if t.closed == true {
+	if t.closed {
 		return nil
 	}
 	if t.wch != nil {
@@ -74,7 +74,7 @@ func (t *TunIO) StartProcess() {
 func (t *TunIO) read() {
 
 	defer func() {
-		if t.closed == false {
+		if !t.closed {
 			t.handler(nil) //notify close exception
 		}
 		t.Close()
@@ -86,10 +86,10 @@ func (t *TunIO) read() {
 		pkt := make([]byte, t.mtu)
 		n, err := t.device.GetInterface().Read(pkt)
 		if err != nil {
-			if err == io.EOF || strings.Index(err.Error(), "file already closed") > -1 {
+			if err == io.EOF || strings.Contains(err.Error(), "file already closed") {
 				plog.Info("tun device closed")
 			} else {
-				plog.Error("read pkg from tun fail", err)
+				plog.Error("read pkg from tun fail,", err)
 			}
 			return
 		}
@@ -103,7 +103,7 @@ func (t *TunIO) read() {
 
 func (t *TunIO) write() {
 	defer func() {
-		if t.closed == false {
+		if !t.closed {
 			t.handler(nil) //notify close exception
 		}
 		t.Close()
@@ -122,10 +122,10 @@ func (t *TunIO) write() {
 				}
 				_, err := t.device.GetInterface().Write(pkt)
 				if err != nil {
-					if err == io.EOF || strings.Index(err.Error(), "file already closed") > -1 {
+					if err == io.EOF || strings.Contains(err.Error(), "file already closed") {
 						plog.Info("tun device closed")
 					} else {
-						plog.Error("tun write error", err)
+						plog.Error("tun write error,", err)
 					}
 					return
 				}
