@@ -1,6 +1,7 @@
 package core
 
 import (
+	"crypto/tls"
 	"encoding/binary"
 	"io"
 	"net/http"
@@ -40,11 +41,18 @@ func (h3c *Http3Conn) SetLocalIP(ip string) {
 	h3c.localip = ip
 }
 
-func (h3c *Http3Conn) Connect(endpoint string, user string, pwd string, ip string, sni string) error {
+func (h3c *Http3Conn) Connect(endpoint string, user string, pwd string, ip string, sni string, verifySSL bool) error {
 
 	var err error
 
-	conn, resp, err := h3conn.Connect(endpoint+"?user="+url.QueryEscape(user)+"&pwd="+url.QueryEscape(pwd)+"&ip="+ip, time.Second*HTTP3_HANDSHAKE_TIMEOUT)
+	tlsconfig := &tls.Config{
+		InsecureSkipVerify: verifySSL,
+		ServerName:         sni,
+	}
+
+	client := h3conn.NewClient(tlsconfig)
+
+	conn, resp, err := client.Connect(endpoint+"?user="+url.QueryEscape(user)+"&pwd="+url.QueryEscape(pwd)+"&ip="+ip, time.Second*HTTP3_HANDSHAKE_TIMEOUT)
 
 	if err != nil {
 		if resp != nil {

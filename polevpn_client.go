@@ -57,6 +57,7 @@ type PoleVpnClient struct {
 	user              string
 	pwd               string
 	sni               string
+	verifySSL         bool
 	allocip           string
 	localip           string
 	lasttimeHeartbeat time.Time
@@ -109,7 +110,7 @@ func (pc *PoleVpnClient) SetRouteMode(mode bool) {
 	pc.mode = mode
 }
 
-func (pc *PoleVpnClient) Start(endpoint string, user string, pwd string, sni string) error {
+func (pc *PoleVpnClient) Start(endpoint string, user string, pwd string, sni string, verifySSL bool) error {
 
 	pc.mutex.Lock()
 	defer pc.mutex.Unlock()
@@ -124,6 +125,7 @@ func (pc *PoleVpnClient) Start(endpoint string, user string, pwd string, sni str
 	pc.user = user
 	pc.pwd = pwd
 	pc.sni = sni
+	pc.verifySSL = verifySSL
 	var err error
 
 	u, _ := url.Parse(endpoint)
@@ -142,7 +144,7 @@ func (pc *PoleVpnClient) Start(endpoint string, user string, pwd string, sni str
 	pc.conn.SetLocalIP(pc.localip)
 	pc.endpoint = endpoint
 
-	err = pc.conn.Connect(endpoint, user, pwd, "", sni)
+	err = pc.conn.Connect(endpoint, user, pwd, "", sni, verifySSL)
 	if err != nil {
 		if err == ErrLoginVerify {
 			if pc.handler != nil {
@@ -293,7 +295,7 @@ func (pc *PoleVpnClient) reconnect() {
 		if pc.handler != nil {
 			pc.handler(CLIENT_EVENT_RECONNECTING, pc, nil)
 		}
-		err := pc.conn.Connect(pc.endpoint, pc.user, pc.pwd, pc.allocip, pc.sni)
+		err := pc.conn.Connect(pc.endpoint, pc.user, pc.pwd, pc.allocip, pc.sni, pc.verifySSL)
 
 		if pc.state == POLE_CLIENT_CLOSED {
 			break

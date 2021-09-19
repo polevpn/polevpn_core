@@ -48,12 +48,12 @@ func (wsc *WebSocketConn) SetLocalIP(ip string) {
 	wsc.localip = ip
 }
 
-func (wsc *WebSocketConn) Connect(endpoint string, user string, pwd string, ip string, sni string) error {
+func (wsc *WebSocketConn) Connect(endpoint string, user string, pwd string, ip string, sni string, verifySSL bool) error {
 
 	var err error
 
 	tlsconfig := &tls.Config{
-		InsecureSkipVerify: true,
+		InsecureSkipVerify: verifySSL,
 		ServerName:         sni,
 	}
 
