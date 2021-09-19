@@ -41,12 +41,12 @@ func (h3c *Http3Conn) SetLocalIP(ip string) {
 	h3c.localip = ip
 }
 
-func (h3c *Http3Conn) Connect(endpoint string, user string, pwd string, ip string, sni string, verifySSL bool) error {
+func (h3c *Http3Conn) Connect(endpoint string, user string, pwd string, ip string, sni string, skipVerifySSL bool) error {
 
 	var err error
 
 	tlsconfig := &tls.Config{
-		InsecureSkipVerify: verifySSL,
+		InsecureSkipVerify: skipVerifySSL,
 		ServerName:         sni,
 	}
 
