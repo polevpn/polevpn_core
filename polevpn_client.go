@@ -59,7 +59,6 @@ type PoleVpnClient struct {
 	sni               string
 	verifySSL         bool
 	allocip           string
-	localip           string
 	remoteip          string
 	lasttimeHeartbeat time.Time
 	reconnecting      bool
