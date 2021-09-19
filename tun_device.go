@@ -10,26 +10,23 @@ type TunDevice struct {
 	ifce *water.Interface
 }
 
-func NewTunDevice() *TunDevice {
-	return &TunDevice{}
-}
-
-func (td *TunDevice) Create() error {
+func NewTunDevice() (*TunDevice, error) {
+	device := &TunDevice{}
 	config := water.Config{
 		DeviceType: water.TUN,
 	}
 	ifce, err := water.New(config)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	td.ifce = ifce
-	return nil
+	device.ifce = ifce
+	return device, nil
 }
 
-func (td *TunDevice) Attach(fd int) {
-
-	td.ifce = water.NewInterface("tun", os.NewFile(uintptr(fd), "tun"), false)
-
+func AttachTunDevice(fd int) *TunDevice {
+	device := &TunDevice{}
+	device.ifce = water.NewInterface("tun", os.NewFile(uintptr(fd), "tun"), false)
+	return device
 }
 
 func (td *TunDevice) GetInterface() *water.Interface {
