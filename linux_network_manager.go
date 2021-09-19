@@ -77,21 +77,6 @@ func (nm *LinuxNetworkManager) SetNetwork(device string, ip1 string, dns string)
 		return errors.New("set address fail," + err.Error())
 	}
 
-	// nm.netservice, nm.sysdns, err = nm.getNetServiceeDns()
-
-	// plog.Infof("system network service:%v,dns:%v", nm.netservice, nm.sysdns)
-
-	// if err != nil {
-	// 	return errors.New("get system dns server fail," + err.Error())
-	// }
-
-	// plog.Infof("change network service %v dns to %v", nm.netservice, dns)
-	// err = nm.setDnsServer(dns, nm.netservice)
-
-	// if err != nil {
-	// 	return errors.New("set dns server fail," + err.Error())
-	// }
-
 	routes := []string{"1/8", "2/7", "4/6", "8/5", "16/4", "32/3", "64/2", "128.0/1"}
 
 	for _, route := range routes {
