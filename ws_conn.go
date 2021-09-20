@@ -26,13 +26,11 @@ var ErrConnectUnknown = errors.New("server unknown error")
 var ErrNetwork = errors.New("network error")
 
 type WebSocketConn struct {
-	conn     *websocket.Conn
-	wch      chan []byte
-	closed   bool
-	handler  map[uint16]func(PolePacket, Conn)
-	mutex    *sync.Mutex
-	localip  string
-	remoteip string
+	conn    *websocket.Conn
+	wch     chan []byte
+	closed  bool
+	handler map[uint16]func(PolePacket, Conn)
+	mutex   *sync.RWMutex
 }
 
 func NewWebSocketConn() *WebSocketConn {
@@ -41,7 +39,7 @@ func NewWebSocketConn() *WebSocketConn {
 		closed:  true,
 		wch:     nil,
 		handler: make(map[uint16]func(PolePacket, Conn)),
-		mutex:   &sync.Mutex{},
+		mutex:   &sync.RWMutex{},
 	}
 }
 
@@ -92,7 +90,6 @@ func (wsc *WebSocketConn) Close(flag bool) error {
 	if !wsc.closed {
 		wsc.closed = true
 		if wsc.wch != nil {
-			wsc.wch <- nil
 			close(wsc.wch)
 		}
 		err := wsc.conn.Close()
@@ -111,8 +108,6 @@ func (wsc *WebSocketConn) String() string {
 }
 
 func (wsc *WebSocketConn) IsClosed() bool {
-	wsc.mutex.Lock()
-	defer wsc.mutex.Unlock()
 
 	return wsc.closed
 }
@@ -188,6 +183,10 @@ func (wsc *WebSocketConn) write() {
 }
 
 func (wsc *WebSocketConn) Send(pkt []byte) {
+
+	wsc.mutex.RLock()
+	defer wsc.mutex.RUnlock()
+
 	if wsc.IsClosed() {
 		plog.Debug("websocket connection is closed,can't send pkt")
 		return

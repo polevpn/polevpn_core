@@ -19,13 +19,11 @@ const (
 )
 
 type Http3Conn struct {
-	conn     *h3conn.Conn
-	wch      chan []byte
-	closed   bool
-	handler  map[uint16]func(PolePacket, Conn)
-	mutex    *sync.Mutex
-	localip  string
-	remoteip string
+	conn    *h3conn.Conn
+	wch     chan []byte
+	closed  bool
+	handler map[uint16]func(PolePacket, Conn)
+	mutex   *sync.RWMutex
 }
 
 func NewHttp3Conn() *Http3Conn {
@@ -34,7 +32,7 @@ func NewHttp3Conn() *Http3Conn {
 		closed:  true,
 		wch:     nil,
 		handler: make(map[uint16]func(PolePacket, Conn)),
-		mutex:   &sync.Mutex{},
+		mutex:   &sync.RWMutex{},
 	}
 }
 
@@ -84,9 +82,9 @@ func (h3c *Http3Conn) Close(flag bool) error {
 	if !h3c.closed {
 		h3c.closed = true
 		if h3c.wch != nil {
-			h3c.wch <- nil
 			close(h3c.wch)
 		}
+
 		err := h3c.conn.Close()
 		if flag {
 			pkt := make([]byte, POLE_PACKET_HEADER_LEN)
@@ -103,8 +101,6 @@ func (h3c *Http3Conn) String() string {
 }
 
 func (h3c *Http3Conn) IsClosed() bool {
-	h3c.mutex.Lock()
-	defer h3c.mutex.Unlock()
 
 	return h3c.closed
 }
@@ -213,6 +209,10 @@ func (h3c *Http3Conn) write() {
 }
 
 func (h3c *Http3Conn) Send(pkt []byte) {
+
+	h3c.mutex.RLock()
+	defer h3c.mutex.RUnlock()
+
 	if h3c.IsClosed() {
 		plog.Debug("websocket connection is closed,can't send pkt")
 		return
