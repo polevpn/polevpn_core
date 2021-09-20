@@ -180,8 +180,22 @@ func (h3c *Http3Conn) dispatch(pkt []byte) {
 	}
 }
 
+func (h3c *Http3Conn) drainWriteCh() {
+	for {
+		select {
+		case _, ok := <-h3c.wch:
+			if !ok {
+				return
+			}
+		default:
+			return
+		}
+	}
+}
+
 func (h3c *Http3Conn) write() {
 	defer PanicHandler()
+	defer h3c.drainWriteCh()
 
 	for {
 		select {

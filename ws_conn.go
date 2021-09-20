@@ -154,8 +154,22 @@ func (wsc *WebSocketConn) dispatch(pkt []byte) {
 	}
 }
 
+func (wsc *WebSocketConn) drainWriteCh() {
+	for {
+		select {
+		case _, ok := <-wsc.wch:
+			if !ok {
+				return
+			}
+		default:
+			return
+		}
+	}
+}
+
 func (wsc *WebSocketConn) write() {
 	defer PanicHandler()
+	defer wsc.drainWriteCh()
 
 	for {
 		select {
