@@ -57,7 +57,7 @@ type PoleVpnClient struct {
 	user              string
 	pwd               string
 	sni               string
-	verifySSL         bool
+	skipVerifySSL     bool
 	allocip           string
 	remoteip          string
 	lasttimeHeartbeat time.Time
@@ -109,7 +109,7 @@ func (pc *PoleVpnClient) GetRemoteIP() string {
 	return pc.remoteip
 }
 
-func (pc *PoleVpnClient) Start(endpoint string, user string, pwd string, sni string, verifySSL bool) error {
+func (pc *PoleVpnClient) Start(endpoint string, user string, pwd string, sni string, skipVerifySSL bool) error {
 
 	pc.mutex.Lock()
 	defer pc.mutex.Unlock()
@@ -124,7 +124,7 @@ func (pc *PoleVpnClient) Start(endpoint string, user string, pwd string, sni str
 	pc.user = user
 	pc.pwd = pwd
 	pc.sni = sni
-	pc.verifySSL = verifySSL
+	pc.skipVerifySSL = skipVerifySSL
 	var err error
 
 	pc.host, err = GetHostByEndpoint(endpoint)
@@ -151,7 +151,7 @@ func (pc *PoleVpnClient) Start(endpoint string, user string, pwd string, sni str
 	header := http.Header{}
 	header.Add("Host", pc.host)
 
-	err = pc.conn.Connect(endpoint, user, pwd, "", sni, verifySSL, header)
+	err = pc.conn.Connect(endpoint, user, pwd, "", sni, pc.skipVerifySSL, header)
 	if err != nil {
 		if err == ErrLoginVerify {
 			if pc.handler != nil {
@@ -298,7 +298,7 @@ func (pc *PoleVpnClient) reconnect() {
 
 		header := http.Header{}
 		header.Add("Host", pc.host)
-		err := pc.conn.Connect(pc.endpoint, pc.user, pc.pwd, pc.allocip, pc.sni, pc.verifySSL, header)
+		err := pc.conn.Connect(pc.endpoint, pc.user, pc.pwd, pc.allocip, pc.sni, pc.skipVerifySSL, header)
 
 		if pc.state == POLE_CLIENT_CLOSED {
 			break
