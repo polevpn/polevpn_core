@@ -26,7 +26,7 @@ const (
 	HEART_BEAT_INTERVAL          = 10
 	RECONNECT_TIMES              = 60
 	RECONNECT_INTERVAL           = 5
-	WEBSOCKET_NO_HEARTBEAT_TIMES = 3
+	WEBSOCKET_NO_HEARTBEAT_TIMES = 2
 )
 
 const (
@@ -200,13 +200,13 @@ func (pc *PoleVpnClient) handleTunPacket(pkt []byte) {
 		pc.Stop()
 		return
 	}
+
 	version := pkt[0]
 	version = version >> 4
 
 	if version != VERSION_IP_V4 {
 		return
 	}
-
 	pc.sendIPPacketToRemoteConn(pkt)
 }
 
@@ -266,7 +266,9 @@ func (pc *PoleVpnClient) handlerHeartBeatRespose(pkt PolePacket, conn Conn) {
 }
 
 func (pc *PoleVpnClient) handlerIPDataResponse(pkt PolePacket, conn Conn) {
-	pc.tunio.Enqueue(pkt[POLE_PACKET_HEADER_LEN:])
+	if pc.tunio != nil {
+		pc.tunio.Enqueue(pkt[POLE_PACKET_HEADER_LEN:])
+	}
 }
 
 func (pc *PoleVpnClient) handlerConnCloseEvent(pkt PolePacket, conn Conn) {

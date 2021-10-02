@@ -15,6 +15,7 @@ func NewTunDevice() (*TunDevice, error) {
 	config := water.Config{
 		DeviceType: water.TUN,
 	}
+
 	ifce, err := water.New(config)
 	if err != nil {
 		return nil, err
