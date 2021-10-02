@@ -7,5 +7,5 @@ require (
 	github.com/polevpn/anyvalue v1.0.6
 	github.com/polevpn/elog v1.1.0
 	github.com/polevpn/h3conn v1.0.10
-	github.com/polevpn/water v1.0.3
+	github.com/polevpn/water v1.0.4
 )
