@@ -124,7 +124,7 @@ func (h3c *Http3Conn) read() {
 		for {
 			n, err := h3c.conn.Read(prefetch[preOffset:])
 			if err != nil {
-				if err == io.EOF || strings.Contains(err.Error(), "use of closed network connection") {
+				if err == io.EOF || strings.Contains(err.Error(), "canceled") {
 					plog.Info(h3c.String(), " conn closed")
 				} else {
 					plog.Error(h3c.String(), " conn read exception:", err)
@@ -150,7 +150,7 @@ func (h3c *Http3Conn) read() {
 		for {
 			n, err := h3c.conn.Read(pkt[offset:])
 			if err != nil {
-				if err == io.EOF || strings.Contains(err.Error(), "use of closed network connection") {
+				if err == io.EOF || strings.Contains(err.Error(), "canceled") {
 					plog.Info(h3c.String(), " conn closed")
 				} else {
 					plog.Error(h3c.String(), " conn read exception:", err)
@@ -201,7 +201,7 @@ func (h3c *Http3Conn) write() {
 		select {
 		case pkt, ok := <-h3c.wch:
 			if !ok {
-				plog.Error("get pkt from write channel fail,maybe channel closed")
+				plog.Info("http3 conn writing channel closed")
 				return
 			} else {
 				if pkt == nil {

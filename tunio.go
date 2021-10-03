@@ -86,7 +86,7 @@ func (t *TunIO) read() {
 		pkt := make([]byte, t.mtu)
 		n, err := t.device.GetInterface().Read(pkt)
 		if err != nil {
-			if err == io.EOF || strings.Contains(err.Error(), "file already closed") {
+			if err == io.EOF || strings.Contains(err.Error(), "aborted") || strings.Contains(err.Error(), "file already closed") {
 				plog.Info("tun device closed")
 			} else {
 				plog.Error("read pkg from tun fail,", err)
@@ -113,7 +113,7 @@ func (t *TunIO) write() {
 		select {
 		case pkt, ok := <-t.wch:
 			if !ok {
-				plog.Error("get pkt from write channel fail,maybe channel closed")
+				plog.Info("tunio writing channel closed")
 				return
 			} else {
 				if pkt == nil {
@@ -122,7 +122,7 @@ func (t *TunIO) write() {
 				}
 				_, err := t.device.GetInterface().Write(pkt)
 				if err != nil {
-					if err == io.EOF || strings.Contains(err.Error(), "file already closed") {
+					if err == io.EOF || strings.Contains(err.Error(), "aborted") || strings.Contains(err.Error(), "file already closed") {
 						plog.Info("tun device closed")
 					} else {
 						plog.Error("tun write error,", err)

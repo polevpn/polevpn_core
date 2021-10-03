@@ -175,7 +175,7 @@ func (wsc *WebSocketConn) write() {
 		select {
 		case pkt, ok := <-wsc.wch:
 			if !ok {
-				plog.Error("get pkt from write channel fail,maybe channel closed")
+				plog.Info("ws conn writing channel closed")
 				return
 			} else {
 				if pkt == nil {
