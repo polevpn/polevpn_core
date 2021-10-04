@@ -117,6 +117,7 @@ func (pc *PoleVpnClient) Start(endpoint string, user string, pwd string, sni str
 	if pc.state != POLE_CLIENT_INIT {
 		if pc.handler != nil {
 			pc.handler(CLIENT_EVENT_ERROR, pc, anyvalue.New().Set("error", "client stoped or not init").Set("type", ERROR_UNKNOWN))
+			pc.handler(CLIENT_EVENT_STOPPED, pc, nil)
 		}
 		return errors.New("client stoped or not init")
 	}
@@ -129,11 +130,19 @@ func (pc *PoleVpnClient) Start(endpoint string, user string, pwd string, sni str
 
 	pc.host, err = GetHostByEndpoint(endpoint)
 	if err != nil {
+		if pc.handler != nil {
+			pc.handler(CLIENT_EVENT_ERROR, pc, anyvalue.New().Set("error", "get host fail,"+err.Error()).Set("type", ERROR_UNKNOWN))
+			pc.handler(CLIENT_EVENT_STOPPED, pc, nil)
+		}
 		return err
 	}
 	pc.remoteip, err = GetRemoteIPByEndpoint(endpoint)
 
 	if err != nil {
+		if pc.handler != nil {
+			pc.handler(CLIENT_EVENT_ERROR, pc, anyvalue.New().Set("error", "get remote ip fail,"+err.Error()).Set("type", ERROR_UNKNOWN))
+			pc.handler(CLIENT_EVENT_STOPPED, pc, nil)
+		}
 		return err
 	}
 
@@ -143,6 +152,10 @@ func (pc *PoleVpnClient) Start(endpoint string, user string, pwd string, sni str
 		endpoint = strings.Replace(endpoint, "quic://", "https://", -1)
 		pc.conn = NewHttp3Conn()
 	} else {
+		if pc.handler != nil {
+			pc.handler(CLIENT_EVENT_ERROR, pc, anyvalue.New().Set("error", "invalid protocol").Set("type", ERROR_UNKNOWN))
+			pc.handler(CLIENT_EVENT_STOPPED, pc, nil)
+		}
 		return errors.New("invalid protocol")
 	}
 
