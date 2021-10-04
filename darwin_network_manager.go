@@ -196,10 +196,15 @@ func (nm *DarwinNetworkManager) RefreshDefaultGateway() error {
 func (nm *DarwinNetworkManager) RestoreNetwork() {
 
 	plog.Infof("restore network service %v", nm.netservice)
-	nm.delRoute(nm.remoteIp)
-	nm.removeDnsServer(nm.netservice)
-	if nm.sysdns != "" {
-		plog.Infof("set service %v dns to %v", nm.netservice, nm.sysdns)
-		nm.setDnsServer(nm.sysdns, nm.netservice)
+	if nm.remoteIp != "" {
+		nm.delRoute(nm.remoteIp)
+	}
+
+	if nm.netservice != "" {
+		nm.removeDnsServer(nm.netservice)
+		if nm.sysdns != "" {
+			plog.Infof("set service %v dns to %v", nm.netservice, nm.sysdns)
+			nm.setDnsServer(nm.sysdns, nm.netservice)
+		}
 	}
 }
