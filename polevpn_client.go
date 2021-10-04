@@ -132,7 +132,6 @@ func (pc *PoleVpnClient) Start(endpoint string, user string, pwd string, sni str
 	if err != nil {
 		if pc.handler != nil {
 			pc.handler(CLIENT_EVENT_ERROR, pc, anyvalue.New().Set("error", "get host fail,"+err.Error()).Set("type", ERROR_UNKNOWN))
-			pc.handler(CLIENT_EVENT_STOPPED, pc, nil)
 		}
 		return err
 	}
@@ -181,19 +180,20 @@ func (pc *PoleVpnClient) Start(endpoint string, user string, pwd string, sni str
 		return err
 	}
 
+	pc.state = POLE_CLIENT_RUNING
+	if pc.handler != nil {
+		pc.handler(CLIENT_EVENT_STARTED, pc, nil)
+	}
+
 	pc.conn.SetHandler(CMD_ALLOC_IPADDR, pc.handlerAllocAdressRespose)
 	pc.conn.SetHandler(CMD_S2C_IPDATA, pc.handlerIPDataResponse)
 	pc.conn.SetHandler(CMD_CLIENT_CLOSED, pc.handlerConnCloseEvent)
 	pc.conn.SetHandler(CMD_HEART_BEAT, pc.handlerHeartBeatRespose)
 	pc.conn.StartProcess()
 	pc.AskAllocIPAddress()
-
 	pc.lasttimeHeartbeat = time.Now()
 	go pc.HeartBeat()
-	pc.state = POLE_CLIENT_RUNING
-	if pc.handler != nil {
-		pc.handler(CLIENT_EVENT_STARTED, pc, nil)
-	}
+
 	pc.wg.Add(1)
 	return nil
 }
@@ -395,8 +395,8 @@ func (pc *PoleVpnClient) Stop() {
 	pc.mutex.Lock()
 	defer pc.mutex.Unlock()
 
-	if pc.state == POLE_CLIENT_CLOSED {
-		plog.Error("client have been closed")
+	if pc.state == POLE_CLIENT_CLOSED || pc.state == POLE_CLIENT_INIT {
+		plog.Error("client have been closed or not start")
 		return
 	}
 
