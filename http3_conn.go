@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/polevpn/h3conn"
@@ -19,6 +20,8 @@ const (
 )
 
 type Http3Conn struct {
+	up      uint64
+	down    uint64
 	conn    *h3conn.Conn
 	wch     chan []byte
 	closed  bool
@@ -137,14 +140,14 @@ func (h3c *Http3Conn) read() {
 			}
 		}
 
-		len := binary.BigEndian.Uint16(prefetch)
+		length := binary.BigEndian.Uint16(prefetch)
 
-		if len < POLE_PACKET_HEADER_LEN {
+		if length < POLE_PACKET_HEADER_LEN {
 			plog.Error("invalid packet len")
 			continue
 		}
 
-		pkt := make([]byte, len)
+		pkt := make([]byte, length)
 		copy(pkt, prefetch)
 		var offset uint16 = 2
 		for {
@@ -158,11 +161,11 @@ func (h3c *Http3Conn) read() {
 				return
 			}
 			offset += uint16(n)
-			if offset >= len {
+			if offset >= length {
 				break
 			}
 		}
-
+		atomic.AddUint64(&h3c.down, uint64(len(pkt)))
 		h3c.dispatch(pkt)
 
 	}
@@ -208,6 +211,7 @@ func (h3c *Http3Conn) write() {
 					plog.Info("exit write process")
 					return
 				}
+				atomic.AddUint64(&h3c.up, uint64(len(pkt)))
 				_, err := h3c.conn.Write(pkt)
 				if err != nil {
 					if err == io.EOF || err == io.ErrUnexpectedEOF {
@@ -220,6 +224,10 @@ func (h3c *Http3Conn) write() {
 			}
 		}
 	}
+}
+
+func (h3c *Http3Conn) GetUpDownBytes() (uint64, uint64) {
+	return h3c.up, h3c.down
 }
 
 func (h3c *Http3Conn) Send(pkt []byte) {

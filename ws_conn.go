@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -26,6 +27,8 @@ var ErrConnectUnknown = errors.New("server unknown error")
 var ErrNetwork = errors.New("network error")
 
 type WebSocketConn struct {
+	up      uint64
+	down    uint64
 	conn    *websocket.Conn
 	wch     chan []byte
 	closed  bool
@@ -137,6 +140,7 @@ func (wsc *WebSocketConn) read() {
 			continue
 		}
 
+		atomic.AddUint64(&wsc.down, uint64(len(pkt)))
 		wsc.dispatch(pkt)
 
 	}
@@ -182,6 +186,9 @@ func (wsc *WebSocketConn) write() {
 					plog.Info("exit write process")
 					return
 				}
+
+				atomic.AddUint64(&wsc.up, uint64(len(pkt)))
+
 				err := wsc.conn.WriteMessage(websocket.BinaryMessage, pkt)
 				if err != nil {
 					if err == io.EOF || err == io.ErrUnexpectedEOF {
@@ -194,6 +201,11 @@ func (wsc *WebSocketConn) write() {
 			}
 		}
 	}
+}
+
+func (wsc *WebSocketConn) GetUpDownBytes() (uint64, uint64) {
+
+	return wsc.up, wsc.up
 }
 
 func (wsc *WebSocketConn) Send(pkt []byte) {

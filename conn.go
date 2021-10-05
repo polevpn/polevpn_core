@@ -10,4 +10,5 @@ type Conn interface {
 	SetHandler(cmd uint16, handler func(PolePacket, Conn))
 	Send(pkt []byte)
 	StartProcess()
+	GetUpDownBytes() (uint64, uint64)
 }

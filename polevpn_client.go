@@ -105,6 +105,13 @@ func (pc *PoleVpnClient) SetEventHandler(handler func(int, *PoleVpnClient, *anyv
 	pc.handler = handler
 }
 
+func (pc *PoleVpnClient) GetUpDownBytes() (uint64, uint64) {
+	if pc.conn != nil {
+		return pc.conn.GetUpDownBytes()
+	}
+	return 0, 0
+}
+
 func (pc *PoleVpnClient) GetRemoteIP() string {
 	return pc.remoteip
 }
