@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"syscall"
 )
 
 type WindowsNetworkManager struct {
@@ -21,11 +22,12 @@ func NewWindowsNetworkManager() *WindowsNetworkManager {
 
 func (nm *WindowsNetworkManager) setIPAddressAndEnable(tundev string, ip1 string) error {
 
-	var out []byte
-	var err error
 	cmd := "netsh interface ip set address name=\"" + tundev + "\" source=static addr=" + ip1 + " mask=255.255.255.252 gateway=none"
 	args := strings.Split(cmd, " ")
-	out, err = exec.Command(args[0], args[1:]...).Output()
+
+	proc := exec.Command(args[0], args[1:]...)
+	proc.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	out, err := proc.Output()
 	if err != nil {
 		return errors.New(err.Error() + "," + string(out))
 	}
@@ -36,7 +38,10 @@ func (nm *WindowsNetworkManager) setDnsServer(ip string, device string) error {
 
 	cmd := "netsh interface ip set dns \"" + device + "\" static " + ip
 	args := strings.Split(cmd, " ")
-	out, err := exec.Command(args[0], args[1:]...).Output()
+
+	proc := exec.Command(args[0], args[1:]...)
+	proc.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	out, err := proc.Output()
 
 	if err != nil {
 		return errors.New(err.Error() + "," + string(out))
@@ -50,7 +55,10 @@ func (nm *WindowsNetworkManager) restoreDnsServer() error {
 }
 
 func (nm *WindowsNetworkManager) getDefaultGatewayAndLocalIP() (string, string, error) {
-	out, err := exec.Command("route", "print").Output()
+
+	proc := exec.Command("route", "print")
+	proc.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	out, err := proc.Output()
 	if err != nil {
 		return "", "", errors.New(err.Error() + "," + string(out))
 	}
@@ -94,7 +102,9 @@ func (nm *WindowsNetworkManager) getInfNameByIP(ip string) (string, error) {
 func (nm *WindowsNetworkManager) addRoute(cidr string, gw string, ifce string) error {
 	cmd := "netsh interface ip add route prefix=" + cidr + " interface=\"" + ifce + "\" store=active nexthop=" + gw
 	args := strings.Split(cmd, " ")
-	out, err := exec.Command(args[0], args[1:]...).Output()
+	proc := exec.Command(args[0], args[1:]...)
+	proc.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	out, err := proc.Output()
 	if err != nil {
 		return errors.New(err.Error() + "," + string(out))
 	}
@@ -103,7 +113,9 @@ func (nm *WindowsNetworkManager) addRoute(cidr string, gw string, ifce string) e
 
 func (nm *WindowsNetworkManager) delRoute(cidr string) error {
 
-	out, err := exec.Command("route", "delete", cidr).Output()
+	proc := exec.Command("route", "delete", cidr)
+	proc.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	out, err := proc.Output()
 
 	if err != nil {
 		return errors.New(err.Error() + "," + string(out))
@@ -114,8 +126,9 @@ func (nm *WindowsNetworkManager) delRoute(cidr string) error {
 
 func (nm *WindowsNetworkManager) clearRoute() error {
 
-	out, err := exec.Command("route", "delete", "*", nm.gateway).Output()
-
+	proc := exec.Command("route", "delete", "*", nm.gateway)
+	proc.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	out, err := proc.Output()
 	if err != nil {
 		return errors.New(err.Error() + "," + string(out))
 	}
