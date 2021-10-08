@@ -3,7 +3,6 @@ package core
 import (
 	"errors"
 	"net"
-	"os/exec"
 	"strings"
 )
 
@@ -21,8 +20,7 @@ func NewDarwinNetworkManager() *DarwinNetworkManager {
 
 func (nm *DarwinNetworkManager) setIPAddressAndEnable(tundev string, ip1 string) error {
 
-	out, err := exec.Command("bash", "-c", "ifconfig "+tundev+" "+ip1+" "+ip1+" up").Output()
-
+	out, err := ExecuteCommand("bash", "-c", "ifconfig "+tundev+" "+ip1+" "+ip1+" up")
 	if err != nil {
 		return errors.New(err.Error() + "," + string(out))
 	}
@@ -31,7 +29,7 @@ func (nm *DarwinNetworkManager) setIPAddressAndEnable(tundev string, ip1 string)
 
 func (nm *DarwinNetworkManager) setDnsServer(ip string, service string) error {
 
-	out, err := exec.Command("bash", "-c", "networksetup -setdnsservers "+service+" "+ip).Output()
+	out, err := ExecuteCommand("bash", "-c", "networksetup -setdnsservers "+service+" "+ip)
 
 	if err != nil {
 		return errors.New(err.Error() + "," + string(out))
@@ -41,7 +39,7 @@ func (nm *DarwinNetworkManager) setDnsServer(ip string, service string) error {
 
 func (nm *DarwinNetworkManager) removeDnsServer(service string) error {
 
-	out, err := exec.Command("bash", "-c", "networksetup -setdnsservers "+service+" empty").Output()
+	out, err := ExecuteCommand("bash", "-c", "networksetup -setdnsservers "+service+" empty")
 
 	if err != nil {
 		return errors.New(err.Error() + "," + string(out))
@@ -50,7 +48,7 @@ func (nm *DarwinNetworkManager) removeDnsServer(service string) error {
 }
 
 func (nm *DarwinNetworkManager) getDefaultGateway() (string, error) {
-	out, err := exec.Command("bash", "-c", "route -n get default |grep gateway").Output()
+	out, err := ExecuteCommand("bash", "-c", "route -n get default |grep gateway")
 	if err != nil {
 		return "", err
 	}
@@ -61,7 +59,7 @@ func (nm *DarwinNetworkManager) getDefaultGateway() (string, error) {
 
 func (nm *DarwinNetworkManager) getNetServiceeDns() (string, string, error) {
 
-	out, err := exec.Command("bash", "-c", "networksetup -listallnetworkservices").Output()
+	out, err := ExecuteCommand("bash", "-c", "networksetup -listallnetworkservices")
 	if err != nil {
 		return "", "", errors.New(err.Error() + "," + string(out))
 	}
@@ -71,7 +69,7 @@ func (nm *DarwinNetworkManager) getNetServiceeDns() (string, string, error) {
 	for _, v := range a {
 		v = strings.Trim(string(v), " \n\r\t")
 
-		out, err := exec.Command("bash", "-c", "networksetup getinfo \""+v+"\"|grep \"Router:\\W[1-9]\"").Output()
+		out, err := ExecuteCommand("bash", "-c", "networksetup getinfo \""+v+"\"|grep \"Router:\\W[1-9]\"")
 
 		if err != nil {
 			continue
@@ -84,7 +82,7 @@ func (nm *DarwinNetworkManager) getNetServiceeDns() (string, string, error) {
 			continue
 		}
 
-		out, err = exec.Command("bash", "-c", "networksetup -getdnsservers \""+v+"\"").Output()
+		out, err = ExecuteCommand("bash", "-c", "networksetup -getdnsservers \""+v+"\"")
 		if err != nil {
 			continue
 		} else {
@@ -104,7 +102,7 @@ func (nm *DarwinNetworkManager) getNetServiceeDns() (string, string, error) {
 
 func (nm *DarwinNetworkManager) addRoute(cidr string, gw string) error {
 
-	out, err := exec.Command("bash", "-c", "route -n add -net "+cidr+" "+gw).Output()
+	out, err := ExecuteCommand("bash", "-c", "route -n add -net "+cidr+" "+gw)
 
 	if err != nil {
 		return errors.New(err.Error() + "," + string(out))
@@ -115,7 +113,7 @@ func (nm *DarwinNetworkManager) addRoute(cidr string, gw string) error {
 
 func (nm *DarwinNetworkManager) delRoute(cidr string) error {
 
-	out, err := exec.Command("bash", "-c", "route -n delete -net "+cidr).Output()
+	out, err := ExecuteCommand("bash", "-c", "route -n delete -net "+cidr)
 
 	if err != nil {
 		return errors.New(err.Error() + "," + string(out))

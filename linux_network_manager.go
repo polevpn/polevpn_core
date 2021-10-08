@@ -2,7 +2,6 @@ package core
 
 import (
 	"errors"
-	"os/exec"
 	"strings"
 )
 
@@ -21,20 +20,19 @@ func (nm *LinuxNetworkManager) setIPAddressAndEnable(tundev string, ip1 string) 
 	var out []byte
 	var err error
 
-	out, err = exec.Command("bash", "-c", "ip addr flush dev "+tundev).Output()
+	out, err = ExecuteCommand("bash", "-c", "ip addr flush dev "+tundev)
 
 	if err != nil {
 		return errors.New(err.Error() + "," + string(out))
 	}
 
-	out, err = exec.Command("bash", "-c", "ip addr add dev "+tundev+" local "+ip1+" peer "+ip1).Output()
+	out, err = ExecuteCommand("bash", "-c", "ip addr add dev "+tundev+" local "+ip1+" peer "+ip1)
 
 	if err != nil {
 		return errors.New(err.Error() + "," + string(out))
 	}
 
-	out, err = exec.Command("bash", "-c", "ip link set "+tundev+" up").Output()
-
+	out, err = ExecuteCommand("bash", "-c", "ip link set "+tundev+" up")
 	if err != nil {
 		return errors.New(err.Error() + "," + string(out))
 	}
@@ -43,7 +41,7 @@ func (nm *LinuxNetworkManager) setIPAddressAndEnable(tundev string, ip1 string) 
 
 func (nm *LinuxNetworkManager) setDnsServer(ip string) error {
 
-	out, err := exec.Command("bash", "-c", `echo "nameserver `+ip+`" |tee /etc/resolv.conf`).Output()
+	out, err := ExecuteCommand("bash", "-c", `echo "nameserver `+ip+`" |tee /etc/resolv.conf`)
 
 	if err != nil {
 		return errors.New(err.Error() + "," + string(out))
@@ -53,7 +51,7 @@ func (nm *LinuxNetworkManager) setDnsServer(ip string) error {
 
 func (nm *LinuxNetworkManager) restoreDnsServer() error {
 
-	out, err := exec.Command("bash", "-c", `systemctl restart systemd-resolved`).Output()
+	out, err := ExecuteCommand("bash", "-c", `systemctl restart systemd-resolved`)
 
 	if err != nil {
 		return errors.New(err.Error() + "," + string(out))
@@ -62,7 +60,7 @@ func (nm *LinuxNetworkManager) restoreDnsServer() error {
 }
 
 func (nm *LinuxNetworkManager) getDefaultGateway() (string, error) {
-	out, err := exec.Command("bash", "-c", `ip route |grep default|grep -Eo "([0-9]{1,3}[\.]){3}[0-9]{1,3}"`).Output()
+	out, err := ExecuteCommand("bash", "-c", `ip route |grep default|grep -Eo "([0-9]{1,3}[\.]){3}[0-9]{1,3}"`)
 	if err != nil {
 		return "", err
 	}
@@ -70,7 +68,7 @@ func (nm *LinuxNetworkManager) getDefaultGateway() (string, error) {
 }
 
 func (nm *LinuxNetworkManager) addRoute(cidr string, gw string) error {
-	out, err := exec.Command("bash", "-c", "ip route add "+cidr+" via "+gw).Output()
+	out, err := ExecuteCommand("bash", "-c", "ip route add "+cidr+" via "+gw)
 	if err != nil {
 		return errors.New(err.Error() + "," + string(out))
 	}
@@ -79,7 +77,7 @@ func (nm *LinuxNetworkManager) addRoute(cidr string, gw string) error {
 
 func (nm *LinuxNetworkManager) delRoute(cidr string) error {
 
-	out, err := exec.Command("bash", "-c", "ip route del "+cidr).Output()
+	out, err := ExecuteCommand("bash", "-c", "ip route del "+cidr)
 
 	if err != nil {
 		return errors.New(err.Error() + "," + string(out))
