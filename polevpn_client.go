@@ -397,6 +397,16 @@ func (pc *PoleVpnClient) HeartBeat() {
 
 }
 
+func (pc *PoleVpnClient) IsStoped() bool {
+	pc.mutex.Lock()
+	defer pc.mutex.Unlock()
+
+	if pc.state == POLE_CLIENT_CLOSED || pc.state == POLE_CLIENT_INIT {
+		return true
+	}
+	return false
+}
+
 func (pc *PoleVpnClient) Stop() {
 
 	pc.mutex.Lock()
