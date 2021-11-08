@@ -20,7 +20,7 @@ func (nm *LinuxNetworkManager) setIPAddressAndEnable(tundev string, ip1 string) 
 	var out []byte
 	var err error
 
-	out, err = ExecuteCommand("bash", "-c", "ip addr flush dev "+tundev)
+	out, err = ExecuteCommand("bash", "-c", "sudo ip addr flush dev "+tundev)
 
 	if err != nil {
 		return errors.New(err.Error() + "," + string(out))
