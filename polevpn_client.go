@@ -154,9 +154,9 @@ func (pc *PoleVpnClient) Start(endpoint string, user string, pwd string, sni str
 
 	if strings.HasPrefix(endpoint, "wss://") {
 		pc.conn = NewWebSocketConn()
-	} else if strings.HasPrefix(endpoint, "quic://") {
-		endpoint = strings.Replace(endpoint, "quic://", "https://", -1)
-		pc.conn = NewHttp3Conn()
+	} else if strings.HasPrefix(endpoint, "qtls://") {
+		endpoint = strings.Replace(endpoint, "qtls://", "", -1)
+		pc.conn = NewDTLSConn()
 	} else {
 		if pc.handler != nil {
 			pc.handler(CLIENT_EVENT_ERROR, pc, anyvalue.New().Set("error", "invalid protocol").Set("type", ERROR_UNKNOWN))
