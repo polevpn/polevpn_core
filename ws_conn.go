@@ -205,7 +205,7 @@ func (wsc *WebSocketConn) write() {
 
 func (wsc *WebSocketConn) GetUpDownBytes() (uint64, uint64) {
 
-	return wsc.up, wsc.up
+	return wsc.up, wsc.down
 }
 
 func (wsc *WebSocketConn) Send(pkt []byte) {

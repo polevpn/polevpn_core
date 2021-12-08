@@ -248,7 +248,7 @@ func (dsc *DTLSConn) write() {
 
 func (dsc *DTLSConn) GetUpDownBytes() (uint64, uint64) {
 
-	return dsc.up, dsc.up
+	return dsc.up, dsc.down
 }
 
 func (dsc *DTLSConn) Send(pkt []byte) {
