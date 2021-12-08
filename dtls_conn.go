@@ -57,6 +57,7 @@ func (dsc *DTLSConn) Connect(endpoint string, user string, pwd string, ip string
 
 	config := &dtls.Config{
 		InsecureSkipVerify: skipVerifySSL,
+		ServerName:         sni,
 	}
 
 	conn, err := dtls.DialWithContext(ctx, "udp", addr, config)
@@ -71,9 +72,15 @@ func (dsc *DTLSConn) Connect(endpoint string, user string, pwd string, ip string
 	av.Set("pwd", pwd)
 	av.Set("ip", ip)
 
-	data, _ := av.EncodeJson()
+	body, _ := av.EncodeJson()
 
-	_, err = conn.Write(data)
+	reqbuf := make([]byte, POLE_PACKET_HEADER_LEN+len(body))
+	copy(reqbuf[POLE_PACKET_HEADER_LEN:], body)
+	polepkt := PolePacket(reqbuf)
+	polepkt.SetCmd(CMD_USER_AUTH)
+	polepkt.SetLen(uint16(len(reqbuf)))
+
+	_, err = conn.Write(polepkt)
 
 	if err != nil {
 		plog.Error("udp write auth pkt fail,", err)
