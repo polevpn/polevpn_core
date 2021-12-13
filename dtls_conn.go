@@ -67,6 +67,8 @@ func (dsc *DTLSConn) Connect(endpoint string, user string, pwd string, ip string
 		return ErrNetwork
 	}
 
+	conn.SetDeadline(time.Now().Add(DTLS_HANDSHAKE_TIMEOUT * time.Second))
+
 	av := anyvalue.New()
 	av.Set("user", user)
 	av.Set("pwd", pwd)
@@ -122,6 +124,8 @@ func (dsc *DTLSConn) Connect(endpoint string, user string, pwd string, ip string
 
 	dsc.mutex.Lock()
 	defer dsc.mutex.Unlock()
+
+	conn.SetDeadline(time.Time{})
 
 	dsc.conn = conn
 	dsc.wch = make(chan []byte, CH_DTLS_WRITE_SIZE)
