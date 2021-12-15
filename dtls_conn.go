@@ -59,13 +59,14 @@ func (dsc *DTLSConn) Connect(endpoint string, user string, pwd string, ip string
 		InsecureSkipVerify: skipVerifySSL,
 		ServerName:         sni,
 	}
-
+	plog.Info("connect to ", endpoint)
 	conn, err := dtls.DialWithContext(ctx, "udp", addr, config)
 
 	if err != nil {
 		plog.Error("dail dtls fail,", err)
 		return ErrNetwork
 	}
+	plog.Info("connected ", endpoint)
 
 	conn.SetDeadline(time.Now().Add(DTLS_HANDSHAKE_TIMEOUT * time.Second))
 
@@ -81,6 +82,8 @@ func (dsc *DTLSConn) Connect(endpoint string, user string, pwd string, ip string
 	polepkt := PolePacket(reqbuf)
 	polepkt.SetCmd(CMD_USER_AUTH)
 	polepkt.SetLen(uint16(len(reqbuf)))
+
+	plog.Info("send auth to ", endpoint)
 
 	_, err = conn.Write(polepkt)
 
@@ -98,6 +101,8 @@ func (dsc *DTLSConn) Connect(endpoint string, user string, pwd string, ip string
 		conn.Close()
 		return ErrNetwork
 	}
+
+	plog.Info("read auth from ", endpoint)
 
 	pkt := PolePacket(buf[0:n])
 
@@ -148,6 +153,7 @@ func (dsc *DTLSConn) Close(flag bool) error {
 			PolePacket(pkt).SetCmd(CMD_CLIENT_CLOSED)
 			go dsc.dispatch(pkt)
 		}
+		plog.Info("conn ", dsc.String(), " close called")
 		return err
 	}
 	return nil
