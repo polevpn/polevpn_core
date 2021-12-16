@@ -20,7 +20,7 @@ func NewWindowsNetworkManager() *WindowsNetworkManager {
 
 func (nm *WindowsNetworkManager) setIPAddressAndEnable(tundev string, ip1 string) error {
 
-	cmd := "netsh interface ip set address name=\"" + tundev + "\" source=static addr=" + ip1 + " mask=255.255.255.252 gateway=none"
+	cmd := "netsh interface ip set address name=\"" + tundev + "\" source=static addr=" + ip1 + " gateway=none"
 	args := strings.Split(cmd, " ")
 
 	out, err := ExecuteCommand(args[0], args[1:]...)
