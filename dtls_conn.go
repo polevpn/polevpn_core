@@ -18,9 +18,9 @@ const (
 	CH_DTLS_WRITE_SIZE     = 100
 	DTLS_HANDSHAKE_TIMEOUT = 5
 	DTLS_READ_TIME_OUT     = 30
-	DTLS_READ_BUFFER       = 8192
-	DTLS_WRITE_BUFFER_SIZE = 524288
-	DTLS_READ_BUFFER_SIZE  = 524288
+	DTLS_READ_BUFFER       = 1504
+	DTLS_WRITE_BUFFER_SIZE = 4194304
+	DTLS_READ_BUFFER_SIZE  = 4194304
 )
 
 type DTLSConn struct {
@@ -246,7 +246,9 @@ func (dsc *DTLSConn) write() {
 				}
 
 				atomic.AddUint64(&dsc.up, uint64(len(pkt)))
-
+				if len(pkt) > DTLS_READ_BUFFER {
+					plog.Info("-----pktlen > 1504---------")
+				}
 				_, err := dsc.conn.Write(pkt)
 				if err != nil {
 					if err == io.EOF || err == io.ErrUnexpectedEOF {
