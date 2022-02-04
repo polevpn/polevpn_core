@@ -18,6 +18,7 @@ const (
 	CH_DTLS_WRITE_SIZE     = 100
 	DTLS_HANDSHAKE_TIMEOUT = 5
 	DTLS_READ_TIME_OUT     = 30
+	DTLS_READ_BUFFER       = 4096
 	DTLS_WRITE_BUFFER_SIZE = 524288
 	DTLS_READ_BUFFER_SIZE  = 524288
 )
@@ -94,7 +95,7 @@ func (dsc *DTLSConn) Connect(endpoint string, user string, pwd string, ip string
 		return ErrNetwork
 	}
 
-	buf := make([]byte, 2048)
+	buf := make([]byte, DTLS_READ_BUFFER)
 	n, err := conn.Read(buf)
 
 	if err != nil {
@@ -184,7 +185,7 @@ func (dsc *DTLSConn) read() {
 
 		dsc.conn.SetReadDeadline(time.Now().Add(time.Second * DTLS_READ_TIME_OUT))
 
-		buf := make([]byte, 2048)
+		buf := make([]byte, DTLS_READ_BUFFER)
 		n, err := dsc.conn.Read(buf)
 		if err != nil {
 			if err == io.EOF || strings.Contains(err.Error(), "use of closed network connection") {
