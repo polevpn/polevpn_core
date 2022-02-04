@@ -17,6 +17,7 @@ import (
 const (
 	CH_DTLS_WRITE_SIZE     = 100
 	DTLS_HANDSHAKE_TIMEOUT = 5
+	DTLS_READ_TIME_OUT     = 30
 	DTLS_WRITE_BUFFER_SIZE = 524288
 	DTLS_READ_BUFFER_SIZE  = 524288
 )
@@ -180,6 +181,9 @@ func (dsc *DTLSConn) read() {
 	defer PanicHandler()
 
 	for {
+
+		dsc.conn.SetReadDeadline(time.Now().Add(time.Second * DTLS_READ_TIME_OUT))
+
 		buf := make([]byte, 2048)
 		n, err := dsc.conn.Read(buf)
 		if err != nil {

@@ -20,13 +20,12 @@ const (
 )
 
 const (
-	VERSION_IP_V4                = 4
-	VERSION_IP_V6                = 6
-	TUN_DEVICE_CH_WRITE_SIZE     = 2048
-	HEART_BEAT_INTERVAL          = 10
-	RECONNECT_TIMES              = 60
-	RECONNECT_INTERVAL           = 5
-	WEBSOCKET_NO_HEARTBEAT_TIMES = 2
+	VERSION_IP_V4            = 4
+	VERSION_IP_V6            = 6
+	TUN_DEVICE_CH_WRITE_SIZE = 2048
+	HEART_BEAT_INTERVAL      = 10
+	RECONNECT_TIMES          = 60000
+	RECONNECT_INTERVAL       = 5
 )
 
 const (
@@ -384,13 +383,6 @@ func (pc *PoleVpnClient) HeartBeat() {
 		if pc.state == POLE_CLIENT_CLOSED {
 			timer.Stop()
 			break
-		}
-		timeNow := time.Now()
-		if timeNow.Sub(pc.lasttimeHeartbeat) > time.Second*HEART_BEAT_INTERVAL*WEBSOCKET_NO_HEARTBEAT_TIMES {
-			plog.Error("have not recevied heartbeat for ", WEBSOCKET_NO_HEARTBEAT_TIMES, " times,close connection and reconnet")
-			pc.conn.Close(true)
-			pc.lasttimeHeartbeat = timeNow
-			continue
 		}
 		pc.SendHeartBeat()
 	}
