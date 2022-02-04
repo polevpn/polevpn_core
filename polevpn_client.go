@@ -155,7 +155,7 @@ func (pc *PoleVpnClient) Start(endpoint string, user string, pwd string, sni str
 	if strings.HasPrefix(endpoint, "wss://") {
 		pc.conn = NewWebSocketConn()
 	} else if strings.HasPrefix(endpoint, "h3s://") {
-		endpoint = strings.Replace(endpoint, "h3s://", "https", -1)
+		endpoint = strings.Replace(endpoint, "h3s://", "https://", -1)
 		pc.conn = NewHttp3Conn()
 	} else {
 		if pc.handler != nil {
