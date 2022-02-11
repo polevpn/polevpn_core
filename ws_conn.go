@@ -17,6 +17,7 @@ import (
 const (
 	CH_WEBSOCKET_WRITE_SIZE         = 100
 	WEBSOCKET_HANDSHAKE_TIMEOUT     = 5
+	WEBSOCKET_READ_TIMEOUT          = 30
 	WEBSOCKET_TCP_WRITE_BUFFER_SIZE = 524288
 	WEBSOCKET_TCP_READ_BUFFER_SIZE  = 524288
 )
@@ -127,6 +128,8 @@ func (wsc *WebSocketConn) read() {
 	defer PanicHandler()
 
 	for {
+
+		wsc.conn.SetReadDeadline(time.Now().Add(time.Second * WEBSOCKET_READ_TIMEOUT))
 		mtype, pkt, err := wsc.conn.ReadMessage()
 		if err != nil {
 			if err == io.EOF || strings.Contains(err.Error(), "use of closed network connection") {

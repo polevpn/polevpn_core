@@ -24,7 +24,7 @@ const (
 	VERSION_IP_V6                = 6
 	TUN_DEVICE_CH_WRITE_SIZE     = 2048
 	HEART_BEAT_INTERVAL          = 10
-	RECONNECT_TIMES              = 60
+	RECONNECT_TIMES              = 60000
 	RECONNECT_INTERVAL           = 5
 	WEBSOCKET_NO_HEARTBEAT_TIMES = 2
 )
@@ -154,9 +154,9 @@ func (pc *PoleVpnClient) Start(endpoint string, user string, pwd string, sni str
 
 	if strings.HasPrefix(endpoint, "wss://") {
 		pc.conn = NewWebSocketConn()
-	} else if strings.HasPrefix(endpoint, "dtls://") {
-		endpoint = strings.Replace(endpoint, "dtls://", "", -1)
-		pc.conn = NewDTLSConn()
+	} else if strings.HasPrefix(endpoint, "h3s://") {
+		endpoint = strings.Replace(endpoint, "h3s://", "https://", -1)
+		pc.conn = NewHttp3Conn()
 	} else {
 		if pc.handler != nil {
 			pc.handler(CLIENT_EVENT_ERROR, pc, anyvalue.New().Set("error", "invalid protocol").Set("type", ERROR_UNKNOWN))
