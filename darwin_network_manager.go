@@ -140,23 +140,6 @@ func (nm *DarwinNetworkManager) SetNetwork(device string, network string, gatewa
 		return errors.New("set address fail," + err.Error())
 	}
 
-	nm.netservice, nm.sysdns, err = nm.getNetServiceeDns()
-
-	plog.Infof("system network service:%v,dns:%v", nm.netservice, nm.sysdns)
-
-	if err != nil {
-		return errors.New("get system dns server fail," + err.Error())
-	}
-
-	if dns != "" {
-		plog.Infof("change network service %v dns to %v", nm.netservice, dns)
-		err = nm.setDnsServer(dns, nm.netservice)
-	}
-
-	if err != nil {
-		return errors.New("set dns server fail," + err.Error())
-	}
-
 	plog.Info("add route ", remoteIp, " via ", nm.defaultGateway)
 	nm.delRoute(nm.remoteIp)
 	err = nm.addRoute(nm.remoteIp, nm.defaultGateway)
@@ -175,6 +158,24 @@ func (nm *DarwinNetworkManager) SetNetwork(device string, network string, gatewa
 			return errors.New("add route fail," + err.Error())
 		}
 	}
+
+	nm.netservice, nm.sysdns, err = nm.getNetServiceeDns()
+
+	plog.Infof("system network service:%v,dns:%v", nm.netservice, nm.sysdns)
+
+	if err != nil {
+		return errors.New("get system dns server fail," + err.Error())
+	}
+
+	if dns != "" {
+		plog.Infof("change network service %v dns to %v", nm.netservice, dns)
+		err = nm.setDnsServer(dns, nm.netservice)
+	}
+
+	if err != nil {
+		return errors.New("set dns server fail," + err.Error())
+	}
+
 	return nil
 }
 
