@@ -1,8 +1,6 @@
 package core
 
 import (
-	"io"
-	"strings"
 	"sync"
 )
 
@@ -86,11 +84,7 @@ func (t *TunIO) read() {
 		pkt := make([]byte, t.mtu)
 		n, err := t.device.GetInterface().Read(pkt)
 		if err != nil {
-			if err == io.EOF || strings.Contains(err.Error(), "aborted") || strings.Contains(err.Error(), "file already closed") {
-				plog.Info("tun device closed")
-			} else {
-				plog.Error("read pkg from tun fail,", err)
-			}
+			plog.Error("tun read end,status=", err)
 			return
 		}
 		pkt = pkt[:n]
@@ -110,26 +104,20 @@ func (t *TunIO) write() {
 	}()
 	defer PanicHandler()
 	for {
-		select {
-		case pkt, ok := <-t.wch:
-			if !ok {
-				plog.Info("tunio writing channel closed")
-				return
-			} else {
-				if pkt == nil {
-					plog.Info("exit write process")
-					return
-				}
-				_, err := t.device.GetInterface().Write(pkt)
-				if err != nil {
-					if err == io.EOF || strings.Contains(err.Error(), "aborted") || strings.Contains(err.Error(), "file already closed") {
-						plog.Info("tun device closed")
-					} else {
-						plog.Error("tun write error,", err)
-					}
-					return
-				}
-			}
+
+		pkt, ok := <-t.wch
+		if !ok {
+			plog.Info("tunio writing channel closed")
+			return
+		}
+		if pkt == nil {
+			plog.Info("exit write process")
+			return
+		}
+		_, err := t.device.GetInterface().Write(pkt)
+		if err != nil {
+			plog.Error("tun write end,status=", err)
+			return
 		}
 	}
 }

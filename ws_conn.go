@@ -3,10 +3,8 @@ package core
 import (
 	"crypto/tls"
 	"errors"
-	"io"
 	"net/http"
 	"net/url"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -132,11 +130,7 @@ func (wsc *WebSocketConn) read() {
 		wsc.conn.SetReadDeadline(time.Now().Add(time.Second * WEBSOCKET_READ_TIMEOUT))
 		mtype, pkt, err := wsc.conn.ReadMessage()
 		if err != nil {
-			if err == io.EOF || strings.Contains(err.Error(), "use of closed network connection") {
-				plog.Info(wsc.String(), " conn closed")
-			} else {
-				plog.Error(wsc.String(), " conn read exception:", err)
-			}
+			plog.Error(wsc.String(), " conn read end,status=", err)
 			return
 		}
 		if mtype != websocket.BinaryMessage {
@@ -179,29 +173,23 @@ func (wsc *WebSocketConn) write() {
 	defer wsc.drainWriteCh()
 
 	for {
-		select {
-		case pkt, ok := <-wsc.wch:
-			if !ok {
-				plog.Info("ws conn writing channel closed")
-				return
-			} else {
-				if pkt == nil {
-					plog.Info("exit write process")
-					return
-				}
 
-				atomic.AddUint64(&wsc.up, uint64(len(pkt)))
+		pkt, ok := <-wsc.wch
+		if !ok {
+			plog.Info(wsc.String(), " channel closed")
+			return
+		}
+		if pkt == nil {
+			plog.Info(wsc.String(), " exit write process")
+			return
+		}
 
-				err := wsc.conn.WriteMessage(websocket.BinaryMessage, pkt)
-				if err != nil {
-					if err == io.EOF || err == io.ErrUnexpectedEOF {
-						plog.Info(wsc.String(), " conn closed")
-					} else {
-						plog.Error(wsc.String(), " conn write exception:", err)
-					}
-					return
-				}
-			}
+		atomic.AddUint64(&wsc.up, uint64(len(pkt)))
+
+		err := wsc.conn.WriteMessage(websocket.BinaryMessage, pkt)
+		if err != nil {
+			plog.Error(wsc.String(), " conn write end,status=", err)
+			return
 		}
 	}
 }

@@ -4,10 +4,14 @@ import (
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
+	"encoding/binary"
+	"errors"
+	"io"
 	"net"
 	"net/url"
 	"os"
 	"runtime/debug"
+	"strconv"
 )
 
 func PanicHandler() {
@@ -50,6 +54,34 @@ func GetHostByEndpoint(endpoint string) (string, error) {
 	}
 
 	return u.Hostname(), nil
+}
+
+func ReadPacket(conn io.Reader) ([]byte, error) {
+
+	prefetch := make([]byte, 2)
+
+	_, err := io.ReadFull(conn, prefetch)
+
+	if err != nil {
+		return nil, err
+	}
+
+	len := binary.BigEndian.Uint16(prefetch)
+
+	if len < POLE_PACKET_HEADER_LEN {
+		return nil, errors.New("invalid pkt len=" + strconv.Itoa(int(len)))
+	}
+
+	pkt := make([]byte, len)
+	copy(pkt, prefetch)
+
+	_, err = io.ReadFull(conn, pkt[2:])
+
+	if err != nil {
+		return nil, err
+	}
+
+	return pkt, nil
 }
 
 var AesKey = []byte{0x15, 0xfc, 0xf2, 0x66, 0x78, 0x10, 0x5a, 0x34, 0xef, 0x5e, 0xac, 0xcb, 0x6f, 0x78, 0x53, 0xdc}

@@ -2,11 +2,8 @@ package core
 
 import (
 	"crypto/tls"
-	"encoding/binary"
-	"io"
 	"net/http"
 	"net/url"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -120,51 +117,13 @@ func (h3c *Http3Conn) read() {
 	defer PanicHandler()
 
 	for {
-		var preOffset = 0
+		pkt, err := ReadPacket(h3c.conn)
 
-		prefetch := make([]byte, 2)
-
-		for {
-			n, err := h3c.conn.Read(prefetch[preOffset:])
-			if err != nil {
-				if err == io.EOF || strings.Contains(err.Error(), "canceled") {
-					plog.Info(h3c.String(), " conn closed")
-				} else {
-					plog.Error(h3c.String(), " conn read exception:", err)
-				}
-				return
-			}
-			preOffset += n
-			if preOffset >= 2 {
-				break
-			}
+		if err != nil {
+			plog.Error("h3c conn read end,status=", err)
+			return
 		}
 
-		length := binary.BigEndian.Uint16(prefetch)
-
-		if length < POLE_PACKET_HEADER_LEN {
-			plog.Error("invalid packet len")
-			continue
-		}
-
-		pkt := make([]byte, length)
-		copy(pkt, prefetch)
-		var offset uint16 = 2
-		for {
-			n, err := h3c.conn.Read(pkt[offset:])
-			if err != nil {
-				if err == io.EOF || strings.Contains(err.Error(), "canceled") {
-					plog.Info(h3c.String(), " conn closed")
-				} else {
-					plog.Error(h3c.String(), " conn read exception:", err)
-				}
-				return
-			}
-			offset += uint16(n)
-			if offset >= length {
-				break
-			}
-		}
 		atomic.AddUint64(&h3c.down, uint64(len(pkt)))
 		h3c.dispatch(pkt)
 
@@ -201,27 +160,21 @@ func (h3c *Http3Conn) write() {
 	defer h3c.drainWriteCh()
 
 	for {
-		select {
-		case pkt, ok := <-h3c.wch:
-			if !ok {
-				plog.Info("http3 conn writing channel closed")
-				return
-			} else {
-				if pkt == nil {
-					plog.Info("exit write process")
-					return
-				}
-				atomic.AddUint64(&h3c.up, uint64(len(pkt)))
-				_, err := h3c.conn.Write(pkt)
-				if err != nil {
-					if err == io.EOF || err == io.ErrUnexpectedEOF {
-						plog.Info(h3c.String(), " conn closed")
-					} else {
-						plog.Error(h3c.String(), " conn write exception:", err)
-					}
-					return
-				}
-			}
+		pkt, ok := <-h3c.wch
+		if !ok {
+			plog.Info(h3c.String(), " channel closed")
+			return
+		}
+
+		if pkt == nil {
+			plog.Info(h3c.String(), " exit write process")
+			return
+		}
+		atomic.AddUint64(&h3c.up, uint64(len(pkt)))
+		_, err := h3c.conn.Write(pkt)
+		if err != nil {
+			plog.Error(h3c.String(), " conn write end,status=", err)
+			return
 		}
 	}
 }
