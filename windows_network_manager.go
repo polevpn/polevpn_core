@@ -2,7 +2,6 @@ package core
 
 import (
 	"errors"
-	"fmt"
 	"net"
 	"regexp"
 	"strings"
@@ -19,9 +18,9 @@ func NewWindowsNetworkManager() *WindowsNetworkManager {
 	return &WindowsNetworkManager{}
 }
 
-func (nm *WindowsNetworkManager) setIPAddressAndEnable(tundev string, ip1 string, mask string) error {
+func (nm *WindowsNetworkManager) setIPAddressAndEnable(tundev string, ip1 string) error {
 
-	cmd := "netsh interface ip set address name=\"" + tundev + "\" source=static addr=" + ip1 + " mask=" + mask + " gateway=none"
+	cmd := "netsh interface ip set address name=\"" + tundev + "\" source=static addr=" + ip1 + " gateway=none"
 	args := strings.Split(cmd, " ")
 
 	out, err := ExecuteCommand(args[0], args[1:]...)
@@ -30,6 +29,7 @@ func (nm *WindowsNetworkManager) setIPAddressAndEnable(tundev string, ip1 string
 	}
 	return nil
 }
+
 
 func (nm *WindowsNetworkManager) setDnsServer(ip string, device string) error {
 
@@ -123,7 +123,7 @@ func (nm *WindowsNetworkManager) clearRoute() error {
 
 }
 
-func (nm *WindowsNetworkManager) SetNetwork(device string, network string, ip string, remoteIp string, dns string, routes []string) error {
+func (nm *WindowsNetworkManager) SetNetwork(device string, ip string, remoteIp string, dns string, routes []string) error {
 
 	nm.remoteIp = remoteIp
 
@@ -140,21 +140,22 @@ func (nm *WindowsNetworkManager) SetNetwork(device string, network string, ip st
 		return err
 	}
 
-	_, ipv4Net, err := net.ParseCIDR(network)
-	if err != nil {
-		return err
-	}
-	mask := fmt.Sprintf("%d.%d.%d.%d", ipv4Net.Mask[0], ipv4Net.Mask[1], ipv4Net.Mask[2], ipv4Net.Mask[3])
-
 	plog.Infof("set tun device ip as %v", ip)
-	err = nm.setIPAddressAndEnable(device, ip, mask)
 	if err != nil {
 		return errors.New("set address fail," + err.Error())
 	}
 
-	first := ipv4Net.IP.To4()
-	first[3] = first[3] + 1
-	gateway := first.String()
+	_, network, err := net.ParseCIDR(ip + "/30")
+	if err != nil {
+		return err
+	}
+	var gateway = network.IP.String()
+
+	if ip == gateway {
+		first := network.IP.To4()
+		first[3] = first[3] + 1
+		gateway = first.String()
+	}
 
 	nm.gateway = gateway
 	if dns != "" {

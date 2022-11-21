@@ -86,7 +86,7 @@ func (nm *LinuxNetworkManager) delRoute(cidr string) error {
 
 }
 
-func (nm *LinuxNetworkManager) SetNetwork(device string, network string, gateway string, remoteIp string, dns string, routes []string) error {
+func (nm *LinuxNetworkManager) SetNetwork(device string, gateway string, remoteIp string, dns string, routes []string) error {
 
 	nm.gateway = gateway
 	nm.remoteIp = remoteIp
