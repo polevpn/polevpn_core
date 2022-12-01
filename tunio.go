@@ -9,7 +9,7 @@ const (
 	TCP_HEADER_LEN = 20
 	UDP_HEADER_LEN = 8
 	DNS_PORT       = 53
-	MTU            = 1500
+	MTU            = 1504
 )
 
 type TunIO struct {
