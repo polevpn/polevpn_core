@@ -60,7 +60,7 @@ func (nm *LinuxNetworkManager) restoreDnsServer() error {
 }
 
 func (nm *LinuxNetworkManager) getDefaultGateway() (string, error) {
-	out, err := ExecuteCommand("bash", "-c", `ip route |grep default|grep -Eo "([0-9]{1,3}[\.]){3}[0-9]{1,3}"`)
+	out, err := ExecuteCommand("bash", "-c", `ip route |grep default|grep -Eo "([0-9]{1,3}[\.]){3}[0-9]{1,3}"|head -1`)
 	if err != nil {
 		return "", err
 	}
