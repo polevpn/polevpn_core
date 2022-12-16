@@ -30,7 +30,6 @@ func (nm *WindowsNetworkManager) setIPAddressAndEnable(tundev string, ip1 string
 	return nil
 }
 
-
 func (nm *WindowsNetworkManager) setDnsServer(ip string, device string) error {
 
 	cmd := "netsh interface ip set dns \"" + device + "\" static " + ip
@@ -140,7 +139,10 @@ func (nm *WindowsNetworkManager) SetNetwork(device string, ip string, remoteIp s
 		return err
 	}
 
-	plog.Infof("set tun device ip as %v", ip)
+	plog.Infof("set tun device %v ip as %v", device, ip)
+
+	err = nm.setIPAddressAndEnable(device, ip)
+
 	if err != nil {
 		return errors.New("set address fail," + err.Error())
 	}
