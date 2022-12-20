@@ -45,7 +45,7 @@ func (nm *WindowsNetworkManager) setDnsServer(ip string, device string) error {
 
 func (nm *WindowsNetworkManager) setInterfaceMetric(device string, mertic string) error {
 
-	cmd := "powershell -nologo -noprofile Set-NetIPInterface -InterfaceAlias " + device + " -InterfaceMetric " + mertic
+	cmd := "powershell -nologo -noprofile Set-NetIPInterface -InterfaceAlias '" + device + "' -InterfaceMetric " + mertic
 	args := strings.Split(cmd, " ")
 
 	out, err := ExecuteCommand(args[0], args[1:]...)
