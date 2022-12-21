@@ -43,6 +43,19 @@ func (nm *WindowsNetworkManager) setDnsServer(ip string, device string) error {
 	return nil
 }
 
+func (nm *WindowsNetworkManager) flushDns() error {
+
+	cmd := "ipconfig /flushdns"
+	args := strings.Split(cmd, " ")
+
+	out, err := ExecuteCommand(args[0], args[1:]...)
+
+	if err != nil {
+		return errors.New(err.Error() + "," + string(out))
+	}
+	return nil
+}
+
 func (nm *WindowsNetworkManager) setInterfaceMetric(device string, mertic string) error {
 
 	cmd := "powershell -nologo -noprofile Set-NetIPInterface -InterfaceAlias '" + device + "' -InterfaceMetric " + mertic
@@ -170,6 +183,12 @@ func (nm *WindowsNetworkManager) SetNetwork(device string, ip string, remoteIp s
 
 	if err != nil {
 		plog.Errorf("set interface %v mertic fail,%v", device, err)
+	}
+
+	err = nm.flushDns()
+
+	if err != nil {
+		plog.Errorf("flushdns fail,%v", err)
 	}
 
 	_, network, err := net.ParseCIDR(ip + "/30")

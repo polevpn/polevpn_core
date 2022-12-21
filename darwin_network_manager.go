@@ -37,6 +37,16 @@ func (nm *DarwinNetworkManager) setDnsServer(ip string, service string) error {
 	return nil
 }
 
+func (nm *DarwinNetworkManager) flushDns() error {
+
+	out, err := ExecuteCommand("bash", "-c", "dscacheutil -flushcache")
+
+	if err != nil {
+		return errors.New(err.Error() + "," + string(out))
+	}
+	return nil
+}
+
 func (nm *DarwinNetworkManager) removeDnsServer(service string) error {
 
 	out, err := ExecuteCommand("bash", "-c", "networksetup -setdnsservers "+service+" empty")
@@ -174,6 +184,12 @@ func (nm *DarwinNetworkManager) SetNetwork(device string, gateway string, remote
 
 	if err != nil {
 		return errors.New("set dns server fail," + err.Error())
+	}
+
+	err = nm.flushDns()
+
+	if err != nil {
+		plog.Error("flush dns fail,", err)
 	}
 
 	return nil
