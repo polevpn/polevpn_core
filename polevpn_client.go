@@ -129,6 +129,10 @@ func (pc *PoleVpnClient) Start(endpoint string, user string, pwd string, sni str
 		return errors.New("client stoped or not init")
 	}
 
+	if sni == "" {
+		sni = "www.apple.com"
+	}
+
 	pc.user = user
 	pc.pwd = pwd
 	pc.sni = sni
