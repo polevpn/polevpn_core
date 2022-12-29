@@ -344,8 +344,9 @@ func (pc *PoleVpnClient) reconnect() {
 				plog.Error("ip address expired,reconnect and request new")
 				pc.allocip = ""
 			} else {
+				time.Sleep(time.Second * RECONNECT_INTERVAL)
 				plog.Error("server refuse connect")
-				break
+				continue
 			}
 
 		} else {
