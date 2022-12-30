@@ -36,7 +36,7 @@ func NewHttp3Conn() *Http3Conn {
 	}
 }
 
-func (h3c *Http3Conn) Connect(endpoint string, user string, pwd string, ip string, sni string, skipVerifySSL bool, header http.Header) error {
+func (h3c *Http3Conn) Connect(endpoint string, user string, pwd string, ip string, sni string, skipVerifySSL bool, deviceType string, deviceId string, header http.Header) error {
 
 	var err error
 
@@ -47,7 +47,7 @@ func (h3c *Http3Conn) Connect(endpoint string, user string, pwd string, ip strin
 
 	client := h3conn.NewClient(tlsconfig)
 
-	conn, resp, err := client.Connect(endpoint+"?user="+url.QueryEscape(user)+"&pwd="+url.QueryEscape(pwd)+"&ip="+ip, time.Second*HTTP3_HANDSHAKE_TIMEOUT, header)
+	conn, resp, err := client.Connect(endpoint+"?user="+url.QueryEscape(user)+"&pwd="+url.QueryEscape(pwd)+"&ip="+ip+"&deviceType="+deviceType+"&deviceId="+deviceId, time.Second*HTTP3_HANDSHAKE_TIMEOUT, header)
 
 	if err != nil {
 		if resp != nil {

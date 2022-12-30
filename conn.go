@@ -3,7 +3,7 @@ package core
 import "net/http"
 
 type Conn interface {
-	Connect(endpoint string, user string, pwd string, ip string, sni string, skipVerifySSL bool, header http.Header) error
+	Connect(endpoint string, user string, pwd string, ip string, sni string, skipVerifySSL bool, deviceType string, deviceId string, header http.Header) error
 	Close(flag bool) error
 	String() string
 	IsClosed() bool
