@@ -45,7 +45,7 @@ func NewWebSocketConn() *WebSocketConn {
 	}
 }
 
-func (wsc *WebSocketConn) Connect(endpoint string, user string, pwd string, ip string, sni string, skipVerifySSL bool, devideType string, devideId string, header http.Header) error {
+func (wsc *WebSocketConn) Connect(endpoint string, user string, pwd string, ip string, sni string, skipVerifySSL bool, deviceType string, deviceId string, header http.Header) error {
 
 	var err error
 
@@ -60,7 +60,7 @@ func (wsc *WebSocketConn) Connect(endpoint string, user string, pwd string, ip s
 		EnableCompression: false,
 	}
 
-	conn, resp, err := d.Dial(endpoint+"?user="+url.QueryEscape(user)+"&pwd="+url.QueryEscape(pwd)+"&ip="+ip+"&deviceType="+devideType+"&devideId="+devideId, header)
+	conn, resp, err := d.Dial(endpoint+"?user="+url.QueryEscape(user)+"&pwd="+url.QueryEscape(pwd)+"&ip="+ip+"&deviceType="+deviceType+"&deviceId="+deviceId, header)
 
 	if err != nil {
 		if resp != nil {
