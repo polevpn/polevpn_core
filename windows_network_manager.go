@@ -276,9 +276,17 @@ func (nm *WindowsNetworkManager) SetNetwork(device string, ip string, remoteIp s
 		}
 
 		for _, deviceName := range devices {
-			err = nm.setDnsServer(dns, deviceName)
-			if err != nil {
-				return errors.New("set dns fail," + err.Error())
+
+			if device == deviceName {
+				err = nm.setDnsServer(dns, deviceName)
+				if err != nil {
+					return errors.New("set dns fail," + err.Error())
+				}
+			} else {
+				err = nm.setDnsServer("127.0.0.1", deviceName)
+				if err != nil {
+					return errors.New("set dns fail," + err.Error())
+				}
 			}
 		}
 	}
@@ -289,6 +297,16 @@ func (nm *WindowsNetworkManager) SetNetwork(device string, ip string, remoteIp s
 
 	if err != nil {
 		return errors.New("add route fail," + err.Error())
+	}
+
+	if dns != "" {
+		plog.Info("add route ", dns, " via ", gateway)
+		nm.delRoute(dns)
+		err = nm.addRoute(dns+"/32", gateway, device)
+
+		if err != nil {
+			return errors.New("add route fail," + err.Error())
+		}
 	}
 
 	for _, route := range routes {
