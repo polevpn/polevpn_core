@@ -32,7 +32,33 @@ func (nm *WindowsNetworkManager) setIPAddressAndEnable(tundev string, ip1 string
 
 func (nm *WindowsNetworkManager) setDnsServer(ip string, device string) error {
 
-	cmd := "netsh interface ip set dns \"" + device + "\" static " + ip
+	cmd := "netsh interface ip set dns \"" + device + "\" static " + ip + " primary"
+	args := strings.Split(cmd, " ")
+
+	out, err := ExecuteCommand(args[0], args[1:]...)
+
+	if err != nil {
+		return errors.New(err.Error() + "," + string(out))
+	}
+	return nil
+}
+
+func (nm *WindowsNetworkManager) clearDnsServer(device string) error {
+
+	cmd := "netsh interface ip set dns \"" + device + "\" dhcp"
+	args := strings.Split(cmd, " ")
+
+	out, err := ExecuteCommand(args[0], args[1:]...)
+
+	if err != nil {
+		return errors.New(err.Error() + "," + string(out))
+	}
+	return nil
+}
+
+func (nm *WindowsNetworkManager) setDeviceMetric(device string, value string) error {
+
+	cmd := "netsh interface ipv4 set interface \"" + device + "\" metric=" + value
 	args := strings.Split(cmd, " ")
 
 	out, err := ExecuteCommand(args[0], args[1:]...)
@@ -56,20 +82,20 @@ func (nm *WindowsNetworkManager) flushDns() error {
 	return nil
 }
 
-func (nm *WindowsNetworkManager) setInterfaceMetric(device string, mertic string) error {
+func (nm *WindowsNetworkManager) restoreDnsServer() error {
 
-	cmd := "powershell -nologo -noprofile Set-NetIPInterface -InterfaceAlias '" + device + "' -InterfaceMetric " + mertic
-	args := strings.Split(cmd, " ")
-
-	out, err := ExecuteCommand(args[0], args[1:]...)
+	devices, err := nm.getInterfaceList()
 
 	if err != nil {
-		return errors.New(err.Error() + "," + string(out))
+		return errors.New("set dns fail," + err.Error())
 	}
-	return nil
-}
 
-func (nm *WindowsNetworkManager) restoreDnsServer() error {
+	for _, deviceName := range devices {
+		err = nm.clearDnsServer(deviceName)
+		if err != nil {
+			return errors.New("set dns fail," + err.Error())
+		}
+	}
 
 	return nil
 }
@@ -117,8 +143,50 @@ func (nm *WindowsNetworkManager) getInfNameByIP(ip string) (string, error) {
 	return "", errors.New("can't find any interface by ip")
 }
 
+func (nm *WindowsNetworkManager) getInterfaceList() ([]string, error) {
+
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return nil, err
+	}
+
+	outStr := make([]string, 0)
+
+	for _, i := range interfaces {
+		byName, err := net.InterfaceByName(i.Name)
+		if err != nil {
+			return nil, err
+		}
+		addresses, err := byName.Addrs()
+		if err != nil {
+			return nil, err
+		}
+		for _, v := range addresses {
+			if strings.Contains(v.String(), ":") {
+				continue
+			}
+
+			if strings.Contains(v.String(), "169.") || strings.Contains(v.String(), "127.") {
+				continue
+			}
+
+			_, _, err := net.ParseCIDR(v.String())
+			if err != nil {
+				continue
+			}
+			outStr = append(outStr, i.Name)
+		}
+	}
+
+	if len(outStr) == 0 {
+		return nil, errors.New("can not find any interface")
+	}
+
+	return outStr, nil
+}
+
 func (nm *WindowsNetworkManager) addRoute(cidr string, gw string, ifce string) error {
-	cmd := "netsh interface ip add route prefix=" + cidr + " interface=\"" + ifce + "\" store=active nexthop=" + gw
+	cmd := "netsh interface ipv4 add route " + cidr + " \"" + ifce + "\" " + gw + " metric=0"
 	args := strings.Split(cmd, " ")
 	out, err := ExecuteCommand(args[0], args[1:]...)
 	if err != nil {
@@ -173,16 +241,10 @@ func (nm *WindowsNetworkManager) SetNetwork(device string, ip string, remoteIp s
 		return errors.New("set address fail," + err.Error())
 	}
 
-	err = nm.setInterfaceMetric(localDevice, "20")
+	err = nm.setDeviceMetric(device, "1")
 
 	if err != nil {
-		plog.Errorf("set interface %v mertic fail,%v", localDevice, err)
-	}
-
-	err = nm.setInterfaceMetric(device, "10")
-
-	if err != nil {
-		plog.Errorf("set interface %v mertic fail,%v", device, err)
+		return errors.New("set address fail," + err.Error())
 	}
 
 	err = nm.flushDns()
@@ -206,9 +268,18 @@ func (nm *WindowsNetworkManager) SetNetwork(device string, ip string, remoteIp s
 	nm.gateway = gateway
 	if dns != "" {
 		plog.Infof("change network dns to %v", dns)
-		err = nm.setDnsServer(dns, device)
+
+		devices, err := nm.getInterfaceList()
+
 		if err != nil {
 			return errors.New("set dns fail," + err.Error())
+		}
+
+		for _, deviceName := range devices {
+			err = nm.setDnsServer(dns, deviceName)
+			if err != nil {
+				return errors.New("set dns fail," + err.Error())
+			}
 		}
 	}
 
