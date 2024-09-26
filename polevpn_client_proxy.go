@@ -17,7 +17,6 @@ import (
 
 type PoleVpnClientProxy struct {
 	tunio         *TunIO
-	conn          Conn
 	state         int
 	mutex         *sync.Mutex
 	endpoint      string
@@ -40,7 +39,6 @@ type PoleVpnClientProxy struct {
 func NewPoleVpnClientProxy() (*PoleVpnClientProxy, error) {
 
 	client := &PoleVpnClientProxy{
-		conn:  nil,
 		state: POLE_CLIENT_INIT,
 		mutex: &sync.Mutex{},
 		wg:    &sync.WaitGroup{},
@@ -65,8 +63,8 @@ func (pc *PoleVpnClientProxy) SetEventHandler(handler func(int, PoleVpnClient, *
 }
 
 func (pc *PoleVpnClientProxy) GetUpDownBytes() (uint64, uint64) {
-	if pc.conn != nil {
-		return pc.conn.GetUpDownBytes()
+	if pc.forwarder != nil {
+		return pc.forwarder.GetUpDownBytes()
 	}
 	return 0, 0
 }

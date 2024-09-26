@@ -52,6 +52,8 @@ type Forwarder struct {
 	user    string
 	sni     string
 	mode    int
+	up      uint64
+	down    uint64
 }
 
 func NewForwarder(proxy string, user string, token string, sni string) (*Forwarder, error) {
@@ -224,6 +226,10 @@ func (lf *Forwarder) GetLocalUDPConn(raddr string) (net.Conn, error) {
 	return conn, nil
 }
 
+func (lf *Forwarder) GetUpDownBytes() (uint64, uint64) {
+	return lf.up, lf.down
+}
+
 func (lf *Forwarder) getRemoteWSConn(raddr string, proto string) (net.Conn, error) {
 	var err error
 
@@ -334,6 +340,8 @@ func (lf *Forwarder) forwardTCP(r *tcp.ForwarderRequest) {
 		}()
 
 		wg.Wait()
+		lf.up += uint64(up)
+		lf.down += uint64(down)
 		plog.Infof("dst:%s,up:%d,down:%d tcp completed", raddr, up, down)
 
 	}()
@@ -476,6 +484,9 @@ func (lf *Forwarder) forwardUDP(r *udp.ForwarderRequest) {
 		}()
 
 		wg.Wait()
+
+		lf.up += uint64(up)
+		lf.down += uint64(down)
 
 		plog.Infof("dst:%s,up:%d,down:%d udp completed", raddr, up, down)
 
