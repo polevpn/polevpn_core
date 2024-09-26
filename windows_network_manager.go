@@ -32,33 +32,7 @@ func (nm *WindowsNetworkManager) setIPAddressAndEnable(tundev string, ip1 string
 
 func (nm *WindowsNetworkManager) setDnsServer(ip string, device string) error {
 
-	cmd := "netsh interface ip set dns \"" + device + "\" static " + ip
-	args := strings.Split(cmd, " ")
-
-	out, err := ExecuteCommand(args[0], args[1:]...)
-
-	if err != nil {
-		return errors.New(err.Error() + "," + string(out))
-	}
-	return nil
-}
-
-func (nm *WindowsNetworkManager) flushDns() error {
-
-	cmd := "ipconfig /flushdns"
-	args := strings.Split(cmd, " ")
-
-	out, err := ExecuteCommand(args[0], args[1:]...)
-
-	if err != nil {
-		return errors.New(err.Error() + "," + string(out))
-	}
-	return nil
-}
-
-func (nm *WindowsNetworkManager) setInterfaceMetric(device string, mertic string) error {
-
-	cmd := "powershell -nologo -noprofile Set-NetIPInterface -InterfaceAlias '" + device + "' -InterfaceMetric " + mertic
+	cmd := "netsh interface ip set dns \"" + device + "\" static " + ip + " primary"
 	args := strings.Split(cmd, " ")
 
 	out, err := ExecuteCommand(args[0], args[1:]...)
@@ -72,6 +46,32 @@ func (nm *WindowsNetworkManager) setInterfaceMetric(device string, mertic string
 func (nm *WindowsNetworkManager) clearDnsServer(device string) error {
 
 	cmd := "netsh interface ip set dns \"" + device + "\" dhcp"
+	args := strings.Split(cmd, " ")
+
+	out, err := ExecuteCommand(args[0], args[1:]...)
+
+	if err != nil {
+		return errors.New(err.Error() + "," + string(out))
+	}
+	return nil
+}
+
+func (nm *WindowsNetworkManager) setDeviceMetric(device string, value string) error {
+
+	cmd := "netsh interface ipv4 set interface \"" + device + "\" metric=" + value
+	args := strings.Split(cmd, " ")
+
+	out, err := ExecuteCommand(args[0], args[1:]...)
+
+	if err != nil {
+		return errors.New(err.Error() + "," + string(out))
+	}
+	return nil
+}
+
+func (nm *WindowsNetworkManager) flushDns() error {
+
+	cmd := "ipconfig /flushdns"
 	args := strings.Split(cmd, " ")
 
 	out, err := ExecuteCommand(args[0], args[1:]...)
@@ -188,39 +188,6 @@ func (nm *WindowsNetworkManager) setIpv4Priority() error {
 	return nil
 }
 
-func (nm *WindowsNetworkManager) addRoute(cidr string, gw string, ifce string) error {
-
-	cmd := "netsh interface ip add route prefix=" + cidr + " interface=\"" + ifce + "\" store=active nexthop=" + gw + " metric=0"
-
-	args := strings.Split(cmd, " ")
-	out, err := ExecuteCommand(args[0], args[1:]...)
-	if err != nil {
-		return errors.New(err.Error() + "," + string(out))
-	}
-	return err
-}
-
-func (nm *WindowsNetworkManager) delRoute(cidr string) error {
-
-	out, err := ExecuteCommand("route", "delete", cidr)
-
-	if err != nil {
-		return errors.New(err.Error() + "," + string(out))
-	}
-	return err
-
-}
-
-func (nm *WindowsNetworkManager) clearRoute() error {
-
-	out, err := ExecuteCommand("route", "delete", "*", nm.gateway)
-	if err != nil {
-		return errors.New(err.Error() + "," + string(out))
-	}
-	return err
-
-}
-
 func (nm *WindowsNetworkManager) getInterfaceList() ([]string, error) {
 
 	interfaces, err := net.Interfaces()
@@ -263,6 +230,39 @@ func (nm *WindowsNetworkManager) getInterfaceList() ([]string, error) {
 	return outStr, nil
 }
 
+func (nm *WindowsNetworkManager) addRoute(cidr string, gw string, ifce string) error {
+
+	cmd := "netsh interface ip add route prefix=" + cidr + " interface=\"" + ifce + "\" store=active nexthop=" + gw + " metric=0"
+
+	args := strings.Split(cmd, " ")
+	out, err := ExecuteCommand(args[0], args[1:]...)
+	if err != nil {
+		return errors.New(err.Error() + "," + string(out))
+	}
+	return err
+}
+
+func (nm *WindowsNetworkManager) delRoute(cidr string) error {
+
+	out, err := ExecuteCommand("route", "delete", cidr)
+
+	if err != nil {
+		return errors.New(err.Error() + "," + string(out))
+	}
+	return err
+
+}
+
+func (nm *WindowsNetworkManager) clearRoute() error {
+
+	out, err := ExecuteCommand("route", "delete", "*", nm.gateway)
+	if err != nil {
+		return errors.New(err.Error() + "," + string(out))
+	}
+	return err
+
+}
+
 func (nm *WindowsNetworkManager) SetNetwork(device string, ip string, remoteIp string, dns string, routes []string) error {
 
 	nm.remoteIp = remoteIp
@@ -288,16 +288,10 @@ func (nm *WindowsNetworkManager) SetNetwork(device string, ip string, remoteIp s
 		return errors.New("set address fail," + err.Error())
 	}
 
-	err = nm.setInterfaceMetric(localDevice, "20")
+	err = nm.setDeviceMetric(device, "1")
 
 	if err != nil {
-		plog.Errorf("set interface %v mertic fail,%v", localDevice, err)
-	}
-
-	err = nm.setInterfaceMetric(device, "10")
-
-	if err != nil {
-		plog.Errorf("set interface %v mertic fail,%v", device, err)
+		return errors.New("set address fail," + err.Error())
 	}
 
 	err = nm.setIpv4Priority()
@@ -344,7 +338,7 @@ func (nm *WindowsNetworkManager) SetNetwork(device string, ip string, remoteIp s
 
 		for _, deviceName := range devices {
 
-			if deviceName == device {
+			if device == deviceName {
 				err = nm.setDnsServer(dns, deviceName)
 				if err != nil {
 					return errors.New("set dns fail," + err.Error())
@@ -364,6 +358,16 @@ func (nm *WindowsNetworkManager) SetNetwork(device string, ip string, remoteIp s
 
 	if err != nil {
 		return errors.New("add route fail," + err.Error())
+	}
+
+	if dns != "" {
+		plog.Info("add route ", dns, " via ", gateway)
+		nm.delRoute(dns)
+		err = nm.addRoute(dns+"/32", gateway, device)
+
+		if err != nil {
+			return errors.New("add route fail," + err.Error())
+		}
 	}
 
 	for _, route := range routes {
