@@ -147,6 +147,11 @@ func (nm *LinuxNetworkManager) RefreshDefaultGateway() error {
 	return nm.addRoute(nm.remoteIp, nm.defaultGateway)
 }
 
+func (nm *LinuxNetworkManager) GetLocalIP() (string, error) {
+
+	return "", nil
+}
+
 func (nm *LinuxNetworkManager) RestoreNetwork() {
 
 	plog.Infof("restore network service")

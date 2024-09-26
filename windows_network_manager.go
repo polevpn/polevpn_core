@@ -69,9 +69,44 @@ func (nm *WindowsNetworkManager) setInterfaceMetric(device string, mertic string
 	return nil
 }
 
+func (nm *WindowsNetworkManager) clearDnsServer(device string) error {
+
+	cmd := "netsh interface ip set dns \"" + device + "\" dhcp"
+	args := strings.Split(cmd, " ")
+
+	out, err := ExecuteCommand(args[0], args[1:]...)
+
+	if err != nil {
+		return errors.New(err.Error() + "," + string(out))
+	}
+	return nil
+}
+
 func (nm *WindowsNetworkManager) restoreDnsServer() error {
 
+	devices, err := nm.getInterfaceList()
+
+	if err != nil {
+		return errors.New("set dns fail," + err.Error())
+	}
+
+	for _, deviceName := range devices {
+		err = nm.clearDnsServer(deviceName)
+		if err != nil {
+			return errors.New("set dns fail," + err.Error())
+		}
+	}
+
 	return nil
+}
+
+func (nm *WindowsNetworkManager) GetLocalIP() (string, error) {
+	_, localip, err := nm.getDefaultGatewayAndLocalIP()
+
+	if err != nil {
+		return "", err
+	}
+	return localip, nil
 }
 
 func (nm *WindowsNetworkManager) getDefaultGatewayAndLocalIP() (string, string, error) {
@@ -117,8 +152,46 @@ func (nm *WindowsNetworkManager) getInfNameByIP(ip string) (string, error) {
 	return "", errors.New("can't find any interface by ip")
 }
 
+func (nm *WindowsNetworkManager) disableIpv6() error {
+
+	cmd := "netsh interface ipv6 set teredo disabled"
+
+	args := strings.Split(cmd, " ")
+
+	out, err := ExecuteCommand(args[0], args[1:]...)
+
+	if err != nil {
+		return errors.New(err.Error() + "," + string(out))
+	}
+
+	cmd = "netsh interface ipv6 set privacy disabled"
+
+	args = strings.Split(cmd, " ")
+
+	out, err = ExecuteCommand(args[0], args[1:]...)
+
+	if err != nil {
+		return errors.New(err.Error() + "," + string(out))
+	}
+	return nil
+}
+func (nm *WindowsNetworkManager) setIpv4Priority() error {
+
+	cmd := "netsh interface ipv6 set prefixpolicy ::ffff:0:0/96 100 4"
+	args := strings.Split(cmd, " ")
+
+	out, err := ExecuteCommand(args[0], args[1:]...)
+
+	if err != nil {
+		return errors.New(err.Error() + "," + string(out))
+	}
+	return nil
+}
+
 func (nm *WindowsNetworkManager) addRoute(cidr string, gw string, ifce string) error {
-	cmd := "netsh interface ip add route prefix=" + cidr + " interface=\"" + ifce + "\" store=active nexthop=" + gw
+
+	cmd := "netsh interface ip add route prefix=" + cidr + " interface=\"" + ifce + "\" store=active nexthop=" + gw + " metric=0"
+
 	args := strings.Split(cmd, " ")
 	out, err := ExecuteCommand(args[0], args[1:]...)
 	if err != nil {
@@ -146,6 +219,48 @@ func (nm *WindowsNetworkManager) clearRoute() error {
 	}
 	return err
 
+}
+
+func (nm *WindowsNetworkManager) getInterfaceList() ([]string, error) {
+
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return nil, err
+	}
+
+	outStr := make([]string, 0)
+
+	for _, i := range interfaces {
+		byName, err := net.InterfaceByName(i.Name)
+		if err != nil {
+			return nil, err
+		}
+		addresses, err := byName.Addrs()
+		if err != nil {
+			return nil, err
+		}
+		for _, v := range addresses {
+			if strings.Contains(v.String(), ":") {
+				continue
+			}
+
+			if strings.Contains(v.String(), "169.") || strings.Contains(v.String(), "127.") {
+				continue
+			}
+
+			_, _, err := net.ParseCIDR(v.String())
+			if err != nil {
+				continue
+			}
+			outStr = append(outStr, i.Name)
+		}
+	}
+
+	if len(outStr) == 0 {
+		return nil, errors.New("can not find any interface")
+	}
+
+	return outStr, nil
 }
 
 func (nm *WindowsNetworkManager) SetNetwork(device string, ip string, remoteIp string, dns string, routes []string) error {
@@ -185,6 +300,20 @@ func (nm *WindowsNetworkManager) SetNetwork(device string, ip string, remoteIp s
 		plog.Errorf("set interface %v mertic fail,%v", device, err)
 	}
 
+	err = nm.setIpv4Priority()
+
+	if err != nil {
+		plog.Errorf("set ipv4 priority fail,%v", err)
+		return err
+	}
+
+	err = nm.disableIpv6()
+
+	if err != nil {
+		plog.Errorf("disable ipv6 fail,%v", err)
+		return err
+	}
+
 	err = nm.flushDns()
 
 	if err != nil {
@@ -206,9 +335,26 @@ func (nm *WindowsNetworkManager) SetNetwork(device string, ip string, remoteIp s
 	nm.gateway = gateway
 	if dns != "" {
 		plog.Infof("change network dns to %v", dns)
-		err = nm.setDnsServer(dns, device)
+
+		devices, err := nm.getInterfaceList()
+
 		if err != nil {
 			return errors.New("set dns fail," + err.Error())
+		}
+
+		for _, deviceName := range devices {
+
+			if deviceName == device {
+				err = nm.setDnsServer(dns, deviceName)
+				if err != nil {
+					return errors.New("set dns fail," + err.Error())
+				}
+			} else {
+				err = nm.setDnsServer("127.0.0.1", deviceName)
+				if err != nil {
+					return errors.New("set dns fail," + err.Error())
+				}
+			}
 		}
 	}
 

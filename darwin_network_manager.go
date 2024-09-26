@@ -132,10 +132,78 @@ func (nm *DarwinNetworkManager) delRoute(cidr string) error {
 
 }
 
+func (nm *DarwinNetworkManager) GetLocalIP() (string, error) {
+
+	gw, err := nm.getDefaultGateway()
+	if err != nil {
+		return "", err
+	}
+
+	return nm.getLocalIp(gw)
+}
+
+func (nm *DarwinNetworkManager) getLocalIp(gw string) (string, error) {
+
+	out, err := ExecuteCommand("bash", "-c", "networksetup -listallnetworkservices")
+	if err != nil {
+		return "", errors.New(err.Error() + "," + string(out))
+	}
+
+	a := strings.Split(string(out), "\n")
+
+	for _, v := range a {
+		v = strings.Trim(string(v), " \n\r\t")
+
+		out, err := ExecuteCommand("bash", "-c", "networksetup getinfo \""+v+"\"|grep \"Router:\\W[1-9]\"")
+
+		if err != nil {
+			continue
+		}
+
+		router := strings.Replace(string(out), "Router: ", "", -1)
+		router = strings.Trim(router, " \n\r\t")
+
+		if router != gw {
+			continue
+		}
+
+		out, err = ExecuteCommand("bash", "-c", "networksetup getinfo \""+v+"\"|grep \"IP address:\\W[1-9]\"")
+
+		if err != nil {
+			continue
+		}
+
+		localip := strings.Replace(string(out), "IP address: ", "", -1)
+		localip = strings.Trim(localip, " \n\r\t")
+
+		return localip, nil
+	}
+	return "", errors.New("no localip found")
+}
+
+func (nm *DarwinNetworkManager) disableIpv6() error {
+
+	out, err := ExecuteCommand("bash", "-c", "networksetup -setv6off Wi-Fi")
+
+	if err != nil {
+		return errors.New(err.Error() + "," + string(out))
+	}
+
+	out1, err := ExecuteCommand("bash", "-c", "networksetup -setv6off Ethernet")
+
+	if err != nil {
+		return errors.New(err.Error() + "," + string(out1))
+	}
+
+	return nil
+}
+
 func (nm *DarwinNetworkManager) SetNetwork(device string, gateway string, remoteIp string, dns string, routes []string) error {
 
 	nm.gateway = gateway
 	nm.remoteIp = remoteIp
+
+	nm.disableIpv6()
 
 	var err error
 
