@@ -134,7 +134,6 @@ func (pc *PoleVpnClientVLAN) Start(endpoint string, user string, pwd string, sni
 
 	header := http.Header{}
 	header.Add("Host", pc.host)
-	header.Add("Connection", "Keep-Alive")
 
 	err = pc.conn.Connect(endpoint, user, pwd, "", sni, pc.skipVerifySSL, deviceType, deviceId, header)
 	if err != nil {
@@ -286,7 +285,6 @@ func (pc *PoleVpnClientVLAN) reconnect() {
 
 		header := http.Header{}
 		header.Add("Host", pc.host)
-		header.Add("Connection", "Keep-Alive")
 		err := pc.conn.Connect(pc.endpoint, pc.user, pc.pwd, pc.allocip, pc.sni, pc.skipVerifySSL, pc.deviceType, pc.deviceId, header)
 
 		if pc.state == POLE_CLIENT_CLOSED {
