@@ -135,6 +135,9 @@ func (pc *PoleVpnClientVLAN) Start(endpoint string, user string, pwd string, sni
 	header := http.Header{}
 	header.Add("Host", pc.host)
 
+	//clear remote ip route,avoid assign address fail
+	DeleteRemoteRoute(pc.remoteip + "/32")
+
 	err = pc.conn.Connect(endpoint, user, pwd, "", sni, pc.skipVerifySSL, deviceType, deviceId, header)
 	if err != nil {
 		if err == ErrLoginVerify {

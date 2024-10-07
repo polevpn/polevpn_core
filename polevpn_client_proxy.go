@@ -123,6 +123,9 @@ func (pc *PoleVpnClientProxy) Start(endpoint string, user string, pwd string, sn
 		return err
 	}
 
+	//clear remote ip route,avoid assign address fail
+	DeleteRemoteRoute(pc.remoteip + "/32")
+
 	netDialer := net.Dialer{}
 
 	netDialContext := func(ctx context.Context, network, addr string) (net.Conn, error) {

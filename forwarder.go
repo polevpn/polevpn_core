@@ -179,6 +179,7 @@ func (lf *Forwarder) Close() {
 	lf.wq.Notify(waiter.EventIn)
 	time.Sleep(time.Millisecond * 100)
 	lf.ep.Close()
+	lf.s.Close()
 }
 
 func (lf *Forwarder) GetLocalTCPConn(raddr string) (net.Conn, error) {

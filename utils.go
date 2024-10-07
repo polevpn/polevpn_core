@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"runtime"
 	"runtime/debug"
 	"strconv"
 )
@@ -56,6 +57,38 @@ func GetHostByEndpoint(endpoint string) (string, error) {
 	return u.Hostname(), nil
 }
 
+func DeleteRemoteRoute(cidr string) error {
+
+	if runtime.GOOS == "darwin" {
+		out, err := ExecuteCommand("bash", "-c", "route -n delete -net "+cidr)
+
+		if err != nil {
+			return errors.New(err.Error() + "," + string(out))
+		}
+		return err
+
+	} else if runtime.GOOS == "linux" {
+
+		out, err := ExecuteCommand("bash", "-c", "ip route del "+cidr)
+
+		if err != nil {
+			return errors.New(err.Error() + "," + string(out))
+		}
+		return err
+	} else if runtime.GOOS == "windows" {
+
+		out, err := ExecuteCommand("route", "delete", cidr)
+
+		if err != nil {
+			return errors.New(err.Error() + "," + string(out))
+		}
+		return err
+
+	} else {
+		return errors.New("system is unsupported")
+	}
+}
+
 func ReadPacket(conn io.Reader) ([]byte, error) {
 
 	prefetch := make([]byte, 2)
@@ -98,7 +131,7 @@ func PKCS7UnPadding(origData []byte) []byte {
 	return origData[:(length - unpadding)]
 }
 
-//AES加密
+// AES加密
 func AesEncrypt(origData, key []byte) ([]byte, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
@@ -112,7 +145,7 @@ func AesEncrypt(origData, key []byte) ([]byte, error) {
 	return crypted, nil
 }
 
-//AES解密
+// AES解密
 func AesDecrypt(crypted, key []byte) ([]byte, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
