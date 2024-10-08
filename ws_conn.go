@@ -209,7 +209,12 @@ func (wsc *WebSocketConn) Send(pkt []byte) {
 		return
 	}
 	if wsc.wch != nil {
-		wsc.wch <- pkt
+
+		select {
+		case wsc.wch <- pkt:
+		default:
+			plog.Debug("wsc writing channel is full")
+		}
 	}
 }
 

@@ -193,7 +193,12 @@ func (h3c *Http3Conn) Send(pkt []byte) {
 		return
 	}
 	if h3c.wch != nil {
-		h3c.wch <- pkt
+
+		select {
+		case h3c.wch <- pkt:
+		default:
+			plog.Debug("h3c writing channel is full")
+		}
 	}
 }
 
