@@ -50,6 +50,9 @@ func (h3c *Http3Conn) Connect(endpoint string, user string, pwd string, ip strin
 	conn, resp, err := client.Connect(endpoint+"?user="+url.QueryEscape(user)+"&pwd="+url.QueryEscape(pwd)+"&ip="+ip+"&deviceType="+deviceType+"&deviceId="+deviceId, time.Second*HTTP3_HANDSHAKE_TIMEOUT, header)
 
 	if err != nil {
+
+		plog.Error("http3 connect fail,", err)
+
 		if resp != nil {
 			if resp.StatusCode == http.StatusBadRequest {
 				resp.Body.Close()
@@ -62,7 +65,6 @@ func (h3c *Http3Conn) Connect(endpoint string, user string, pwd string, ip strin
 				return ErrConnectUnknown
 			}
 		}
-		plog.Error("http3 connect fail,", err)
 		return ErrNetwork
 	}
 
