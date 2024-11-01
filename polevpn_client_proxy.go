@@ -160,6 +160,7 @@ func (pc *PoleVpnClientProxy) Start(endpoint string, user string, pwd string, sn
 	if err != nil && err != websocket.ErrBadHandshake {
 		if pc.handler != nil {
 			pc.handler(CLIENT_EVENT_ERROR, pc, anyvalue.New().Set("error", "dial error :"+err.Error()).Set("type", ERROR_NETWORK))
+			pc.handler(CLIENT_EVENT_STOPPED, pc, nil)
 		}
 		return err
 	}
@@ -169,6 +170,7 @@ func (pc *PoleVpnClientProxy) Start(endpoint string, user string, pwd string, sn
 	if resp.StatusCode != http.StatusOK {
 		if pc.handler != nil {
 			pc.handler(CLIENT_EVENT_ERROR, pc, anyvalue.New().Set("error", ErrLoginVerify).Set("type", ERROR_NETWORK))
+			pc.handler(CLIENT_EVENT_STOPPED, pc, nil)
 		}
 		return ErrLoginVerify
 	}
@@ -178,6 +180,7 @@ func (pc *PoleVpnClientProxy) Start(endpoint string, user string, pwd string, sn
 	if err != nil {
 		if pc.handler != nil {
 			pc.handler(CLIENT_EVENT_ERROR, pc, anyvalue.New().Set("error", "resp read error : "+err.Error()).Set("type", ERROR_NETWORK))
+			pc.handler(CLIENT_EVENT_STOPPED, pc, nil)
 		}
 		return errors.New("read auth fail," + err.Error())
 	}
@@ -199,6 +202,7 @@ func (pc *PoleVpnClientProxy) Start(endpoint string, user string, pwd string, sn
 	if err != nil {
 		if pc.handler != nil {
 			pc.handler(CLIENT_EVENT_ERROR, pc, anyvalue.New().Set("error", "forwarder new err :"+err.Error()).Set("type", ERROR_NETWORK))
+			pc.handler(CLIENT_EVENT_STOPPED, pc, nil)
 		}
 		return errors.New("create forwarder fail," + err.Error())
 	}
