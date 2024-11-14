@@ -26,15 +26,15 @@ import (
 
 const (
 	TCP_MAX_CONNECTION_SIZE  = 1024
-	FORWARD_CH_WRITE_SIZE    = 1024
+	FORWARD_CH_WRITE_SIZE    = 200
 	TCP_MAX_BUFFER_SIZE      = 2048
 	UDP_MAX_BUFFER_SIZE      = 4096
-	UDP_CONNECTION_IDLE_TIME = 60
-	UDP_READ_BUFFER_SIZE     = 524288
-	UDP_WRITE_BUFFER_SIZE    = 262144
-	TCP_READ_BUFFER_SIZE     = 524288
-	TCP_WRITE_BUFFER_SIZE    = 262144
-	CH_WRITE_SIZE            = 100
+	UDP_CONNECTION_IDLE_TIME = 30
+	UDP_READ_BUFFER_SIZE     = 64000
+	UDP_WRITE_BUFFER_SIZE    = 32000
+	TCP_READ_BUFFER_SIZE     = 64000
+	TCP_WRITE_BUFFER_SIZE    = 32000
+	CH_WRITE_SIZE            = 10
 	TCP_CONNECT_TIMEOUT      = 5
 	TCP_CONNECT_RETRY        = 3
 	NETSTACK_MTU             = 1500
@@ -295,6 +295,8 @@ func (lf *Forwarder) getRemoteWSConn(raddr string, proto string) (net.Conn, erro
 
 func (lf *Forwarder) forwardTCP(r *tcp.ForwarderRequest) {
 
+	defer PanicHandler()
+
 	wq := &waiter.Queue{}
 	ep, err := r.CreateEndpoint(wq)
 	if err != nil {
@@ -312,6 +314,8 @@ func (lf *Forwarder) forwardTCP(r *tcp.ForwarderRequest) {
 	plog.Infof("src:%s:%d=>dst:%s:%d tcp connect", r.ID().RemoteAddress.String(), r.ID().RemotePort, r.ID().LocalAddress.String(), r.ID().LocalPort)
 
 	go func() {
+
+		defer PanicHandler()
 
 		addr, _ := ep.GetLocalAddress()
 		raddr := addr.Addr.String() + ":" + strconv.Itoa(int(addr.Port))
@@ -358,6 +362,8 @@ func (lf *Forwarder) tcpRead(r *tcp.ForwarderRequest, wq *waiter.Queue, ep tcpip
 		wg.Done()
 	}()
 
+	defer PanicHandler()
+
 	// Create wait queue entry that notifies a channel.
 	waitEntry, notifyCh := waiter.NewChannelEntry(nil)
 
@@ -375,6 +381,8 @@ func (lf *Forwarder) tcpRead(r *tcp.ForwarderRequest, wq *waiter.Queue, ep tcpip
 	defer close(wch)
 
 	writer := func() {
+		defer PanicHandler()
+
 		for {
 			pkt, ok := <-wch
 			if !ok {
@@ -422,6 +430,7 @@ func (lf *Forwarder) tcpWrite(r *tcp.ForwarderRequest, wq *waiter.Queue, ep tcpi
 		conn.Close()
 		wg.Done()
 	}()
+	defer PanicHandler()
 
 	for {
 		var buf []byte = make([]byte, TCP_MAX_BUFFER_SIZE)
@@ -440,6 +449,9 @@ func (lf *Forwarder) tcpWrite(r *tcp.ForwarderRequest, wq *waiter.Queue, ep tcpi
 }
 
 func (lf *Forwarder) forwardUDP(r *udp.ForwarderRequest) {
+
+	defer PanicHandler()
+
 	wq := &waiter.Queue{}
 	ep, err := r.CreateEndpoint(wq)
 	if err != nil {
@@ -455,6 +467,8 @@ func (lf *Forwarder) forwardUDP(r *udp.ForwarderRequest) {
 	plog.Infof("src:%s:%d=>dst:%s:%d udp connect", r.ID().RemoteAddress.String(), r.ID().RemotePort, r.ID().LocalAddress.String(), r.ID().LocalPort)
 
 	go func() {
+
+		defer PanicHandler()
 
 		var conn net.Conn
 		var remoteErr error
@@ -504,6 +518,8 @@ func (lf *Forwarder) udpRead(r *udp.ForwarderRequest, ep tcpip.Endpoint, wq *wai
 		wg.Done()
 	}()
 
+	defer PanicHandler()
+
 	waitEntry, notifyCh := waiter.NewChannelEntry(nil)
 	wq.EventRegister(&waitEntry, waiter.EventIn)
 	defer wq.EventUnregister(&waitEntry)
@@ -518,6 +534,8 @@ func (lf *Forwarder) udpRead(r *udp.ForwarderRequest, ep tcpip.Endpoint, wq *wai
 	defer close(wch)
 
 	writer := func() {
+		defer PanicHandler()
+
 		for {
 			pkt, ok := <-wch
 			if !ok {
@@ -568,6 +586,10 @@ func (lf *Forwarder) udpRead(r *udp.ForwarderRequest, ep tcpip.Endpoint, wq *wai
 
 		wch <- v
 		lastTime = time.Now()
+
+		if r.ID().LocalPort == 53 || r.ID().LocalPort == 853 {
+			return
+		}
 	}
 }
 
@@ -578,6 +600,8 @@ func (lf *Forwarder) udpWrite(r *udp.ForwarderRequest, ep tcpip.Endpoint, wq *wa
 		conn.Close()
 		wg.Done()
 	}()
+
+	defer PanicHandler()
 
 	for {
 		var udppkg []byte = make([]byte, UDP_MAX_BUFFER_SIZE)

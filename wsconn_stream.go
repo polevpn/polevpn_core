@@ -57,7 +57,7 @@ func (c *WSStreamConn) getReader() (io.Reader, error) {
 // after a fixed time limit; see SetDeadline and SetWriteDeadline.
 func (c *WSStreamConn) Write(b []byte) (n int, err error) {
 	if err := c.conn.WriteMessage(websocket.BinaryMessage, b); err != nil {
-		return 0, nil
+		return 0, err
 	}
 	c.writeBytes += len(b)
 	return len(b), nil
