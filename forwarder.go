@@ -586,10 +586,6 @@ func (lf *Forwarder) udpRead(r *udp.ForwarderRequest, ep tcpip.Endpoint, wq *wai
 
 		wch <- v
 		lastTime = time.Now()
-
-		if r.ID().LocalPort == 53 || r.ID().LocalPort == 853 {
-			return
-		}
 	}
 }
 
@@ -620,6 +616,10 @@ func (lf *Forwarder) udpWrite(r *udp.ForwarderRequest, ep tcpip.Endpoint, wq *wa
 		_, _, err := ep.Write(tcpip.SlicePayload(udppkg1), tcpip.WriteOptions{To: addr})
 		if err != nil {
 			plog.Infof("udp ep %s:%d write fail,%v", r.ID().LocalAddress.String(), r.ID().LocalPort, err)
+			return
+		}
+
+		if r.ID().LocalPort == 53 || r.ID().LocalPort == 853 {
 			return
 		}
 	}
