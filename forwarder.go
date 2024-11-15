@@ -41,19 +41,21 @@ const (
 )
 
 type Forwarder struct {
-	s       *stack.Stack
-	ep      *channel.Endpoint
-	wq      *waiter.Queue
-	closed  bool
-	handler func([]byte)
-	localip string
-	proxy   string
-	token   string
-	user    string
-	sni     string
-	mode    int
-	up      uint64
-	down    uint64
+	s        *stack.Stack
+	ep       *channel.Endpoint
+	wq       *waiter.Queue
+	closed   bool
+	handler  func([]byte)
+	localip  string
+	proxy    string
+	token    string
+	user     string
+	sni      string
+	mode     int
+	up       uint64
+	down     uint64
+	dnsquery *DNSQuery
+	dnsMutex *sync.Mutex
 }
 
 func NewForwarder(proxy string, user string, token string, sni string) (*Forwarder, error) {
@@ -122,6 +124,7 @@ func NewForwarder(proxy string, user string, token string, sni string) (*Forward
 	forwarder.user = user
 	forwarder.token = token
 	forwarder.sni = sni
+	forwarder.dnsMutex = &sync.Mutex{}
 	return forwarder, nil
 }
 
@@ -160,6 +163,26 @@ func (lf *Forwarder) read() {
 	}
 }
 
+func (lf *Forwarder) getDNSQuery() (*DNSQuery, error) {
+
+	lf.dnsMutex.Lock()
+	defer lf.dnsMutex.Unlock()
+
+	if lf.dnsquery != nil && !lf.dnsquery.IsClosed() {
+		return lf.dnsquery, nil
+	} else {
+		dnsquery := NewDNSQuery()
+		err := dnsquery.Connect(lf.proxy, lf.user, lf.token, lf.sni)
+		if err != nil {
+			return nil, err
+		}
+		dnsquery.StartProcess()
+
+		lf.dnsquery = dnsquery
+		return lf.dnsquery, nil
+	}
+}
+
 func (lf *Forwarder) StartProcess() {
 	go lf.read()
 }
@@ -180,6 +203,10 @@ func (lf *Forwarder) Close() {
 	time.Sleep(time.Millisecond * 100)
 	lf.ep.Close()
 	lf.s.Close()
+
+	if lf.dnsquery != nil {
+		lf.dnsquery.Close()
+	}
 }
 
 func (lf *Forwarder) GetLocalTCPConn(raddr string) (net.Conn, error) {
@@ -296,6 +323,11 @@ func (lf *Forwarder) getRemoteWSConn(raddr string, proto string) (net.Conn, erro
 func (lf *Forwarder) forwardTCP(r *tcp.ForwarderRequest) {
 
 	defer PanicHandler()
+
+	if r.ID().LocalAddress.String() == "1.1.1.1" || r.ID().LocalAddress.String() == "8.8.8.8" || r.ID().LocalAddress.String() == "8.8.4.4" {
+		r.Complete(true)
+		return
+	}
 
 	wq := &waiter.Queue{}
 	ep, err := r.CreateEndpoint(wq)
@@ -461,6 +493,60 @@ func (lf *Forwarder) forwardUDP(r *udp.ForwarderRequest) {
 
 	if lf.closed {
 		ep.Close()
+		return
+	}
+
+	if r.ID().LocalAddress.String() == "1.1.1.1" || r.ID().LocalAddress.String() == "8.8.8.8" || r.ID().LocalAddress.String() == "8.8.4.4" {
+
+		plog.Infof("src:%s:%d=>dst:%s:%d udp dns query", r.ID().RemoteAddress.String(), r.ID().RemotePort, r.ID().LocalAddress.String(), r.ID().LocalPort)
+
+		go func() {
+
+			query, err := lf.getDNSQuery()
+
+			if err != nil {
+				plog.Errorf("dst:%s:%d udp dns query remote connect create fail,%s", r.ID().LocalAddress.String(), r.ID().LocalPort, err.Error())
+				ep.Close()
+				return
+			}
+
+			var addr tcpip.FullAddress
+
+			v, _, err1 := ep.Read(&addr)
+
+			if err1 != nil {
+				plog.Errorf("dst:%s:%d udp dns query read fail,%s", r.ID().LocalAddress.String(), r.ID().LocalPort, err1.String())
+				ep.Close()
+				return
+			}
+
+			rch, err := query.Query(r.ID().RemoteAddress.String()+":"+strconv.Itoa(int(r.ID().RemotePort)), r.ID().LocalAddress.String()+":"+strconv.Itoa(int(r.ID().LocalPort)), v)
+
+			if err != nil {
+				plog.Errorf("dst:%s:%d udp dns query fail,%s", r.ID().LocalAddress.String(), r.ID().LocalPort, err.Error())
+				ep.Close()
+				return
+			}
+
+			data, ok := <-rch
+
+			if !ok {
+				plog.Errorf("dst:%s:%d udp dns query fail,read channel closed", r.ID().LocalAddress.String(), r.ID().LocalPort)
+				ep.Close()
+				return
+			}
+
+			_, _, err2 := ep.Write(tcpip.SlicePayload(data), tcpip.WriteOptions{To: &addr})
+
+			if err2 != nil {
+				plog.Infof("dst:%s:%d udp dns query fail,write fail,%v", r.ID().LocalAddress.String(), r.ID().LocalPort, err2)
+				ep.Close()
+				return
+			}
+			plog.Infof("src:%s:%d=>dst:%s:%d udp dns query ok", r.ID().RemoteAddress.String(), r.ID().RemotePort, r.ID().LocalAddress.String(), r.ID().LocalPort)
+
+		}()
+
 		return
 	}
 
