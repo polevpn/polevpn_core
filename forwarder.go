@@ -381,7 +381,7 @@ func (lf *Forwarder) forwardTCP(r *tcp.ForwarderRequest) {
 		return
 	}
 
-	plog.Infof("src:%s:%d=>dst:%s:%d tcp connect", r.ID().RemoteAddress.String(), r.ID().RemotePort, r.ID().LocalAddress.String(), r.ID().LocalPort)
+	plog.Debugf("src:%s:%d=>dst:%s:%d tcp connect", r.ID().RemoteAddress.String(), r.ID().RemotePort, r.ID().LocalAddress.String(), r.ID().LocalPort)
 
 	go func() {
 
@@ -425,7 +425,7 @@ func (lf *Forwarder) forwardTCP(r *tcp.ForwarderRequest) {
 		wg.Wait()
 		lf.up += uint64(up)
 		lf.down += uint64(down)
-		plog.Infof("dst:%s,up:%d,down:%d tcp completed", raddr, up, down)
+		plog.Debugf("dst:%s,up:%d,down:%d tcp completed", raddr, up, down)
 
 	}()
 
@@ -499,7 +499,7 @@ func (lf *Forwarder) forwardUDP(r *udp.ForwarderRequest) {
 		return
 	}
 
-	plog.Infof("src:%s:%d=>dst:%s:%d udp connect", r.ID().RemoteAddress.String(), r.ID().RemotePort, r.ID().LocalAddress.String(), r.ID().LocalPort)
+	plog.Debugf("src:%s:%d=>dst:%s:%d udp connect", r.ID().RemoteAddress.String(), r.ID().RemotePort, r.ID().LocalAddress.String(), r.ID().LocalPort)
 
 	go func() {
 
@@ -541,7 +541,7 @@ func (lf *Forwarder) forwardUDP(r *udp.ForwarderRequest) {
 		lf.up += uint64(up)
 		lf.down += uint64(down)
 
-		plog.Infof("dst:%s,up:%d,down:%d udp completed", raddr, up, down)
+		plog.Debugf("dst:%s,up:%d,down:%d udp completed", raddr, up, down)
 
 	}()
 
