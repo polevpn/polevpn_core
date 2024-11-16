@@ -343,6 +343,24 @@ func (lf *Forwarder) forwardTCP(r *tcp.ForwarderRequest) {
 		return
 	}
 
+	err = ep.SetSockOptInt(tcpip.ReceiveBufferSizeOption, TCP_READ_BUFFER_SIZE)
+
+	if err != nil {
+		plog.Errorf("dst:%v:%v set endpoint fail,%v", r.ID().LocalAddress, r.ID().LocalPort, err)
+		r.Complete(true)
+		ep.Close()
+		return
+	}
+
+	err = ep.SetSockOptInt(tcpip.SendBufferSizeOption, TCP_WRITE_BUFFER_SIZE)
+
+	if err != nil {
+		plog.Errorf("dst:%v:%v set endpoint fail,%v", r.ID().LocalAddress, r.ID().LocalPort, err)
+		r.Complete(true)
+		ep.Close()
+		return
+	}
+
 	plog.Infof("src:%s:%d=>dst:%s:%d tcp connect", r.ID().RemoteAddress.String(), r.ID().RemotePort, r.ID().LocalAddress.String(), r.ID().LocalPort)
 
 	go func() {
