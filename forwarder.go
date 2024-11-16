@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
-	"io"
 	"net"
 	"net/http"
 	"strconv"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/polevpn/netstack/tcpip"
+	"github.com/polevpn/netstack/tcpip/adapters/gonet"
 	"github.com/polevpn/netstack/tcpip/buffer"
 	"github.com/polevpn/netstack/tcpip/link/channel"
 	"github.com/polevpn/netstack/tcpip/network/arp"
@@ -25,19 +25,18 @@ import (
 )
 
 const (
-	TCP_MAX_CONNECTION_SIZE  = 1024
-	FORWARD_CH_WRITE_SIZE    = 200
-	TCP_MAX_BUFFER_SIZE      = 2048
-	UDP_MAX_BUFFER_SIZE      = 4096
-	UDP_CONNECTION_IDLE_TIME = 30
-	UDP_READ_BUFFER_SIZE     = 64000
-	UDP_WRITE_BUFFER_SIZE    = 32000
-	TCP_READ_BUFFER_SIZE     = 64000
-	TCP_WRITE_BUFFER_SIZE    = 32000
-	CH_WRITE_SIZE            = 10
-	TCP_CONNECT_TIMEOUT      = 5
-	TCP_CONNECT_RETRY        = 3
-	NETSTACK_MTU             = 1500
+	TCP_MAX_CONNECTION_SIZE = 1024
+	FORWARD_CH_WRITE_SIZE   = 200
+	MAX_BUFFER_SIZE         = 4096
+	CONNECTION_IDLE_TIME    = 30
+	UDP_READ_BUFFER_SIZE    = 64000
+	UDP_WRITE_BUFFER_SIZE   = 32000
+	TCP_READ_BUFFER_SIZE    = 64000
+	TCP_WRITE_BUFFER_SIZE   = 32000
+	CH_WRITE_SIZE           = 10
+	TCP_CONNECT_TIMEOUT     = 5
+	TCP_CONNECT_RETRY       = 3
+	NETSTACK_MTU            = 1500
 )
 
 type Forwarder struct {
@@ -198,9 +197,6 @@ func (lf *Forwarder) Close() {
 		return
 	}
 	lf.closed = true
-
-	lf.wq.Notify(waiter.EventIn)
-	time.Sleep(time.Millisecond * 100)
 	lf.ep.Close()
 	lf.s.Close()
 
@@ -320,14 +316,38 @@ func (lf *Forwarder) getRemoteWSConn(raddr string, proto string) (net.Conn, erro
 	}
 }
 
+func (lf *Forwarder) copyStream(dst net.Conn, src net.Conn, waitTime time.Duration, wg *sync.WaitGroup) (n int64) {
+
+	defer wg.Done()
+
+	buf := make([]byte, MAX_BUFFER_SIZE)
+
+	for {
+		if waitTime > 0 {
+			src.SetReadDeadline(time.Now().Add(waitTime))
+		}
+		nr, err := src.Read(buf)
+
+		if nr > 0 {
+			if nw, err := dst.Write(buf[:nr]); err != nil {
+				plog.Debugf(err.Error())
+				break
+			} else {
+				n += int64(nw)
+			}
+		}
+
+		if err != nil {
+			plog.Debugf(err.Error())
+			break
+		}
+	}
+	return
+}
+
 func (lf *Forwarder) forwardTCP(r *tcp.ForwarderRequest) {
 
 	defer PanicHandler()
-
-	if r.ID().LocalAddress.String() == "1.1.1.1" || r.ID().LocalAddress.String() == "8.8.8.8" || r.ID().LocalAddress.String() == "8.8.4.4" {
-		r.Complete(true)
-		return
-	}
 
 	wq := &waiter.Queue{}
 	ep, err := r.CreateEndpoint(wq)
@@ -343,7 +363,7 @@ func (lf *Forwarder) forwardTCP(r *tcp.ForwarderRequest) {
 		return
 	}
 
-	err = ep.SetSockOptInt(tcpip.ReceiveBufferSizeOption, TCP_READ_BUFFER_SIZE)
+	err = ep.SetSockOptInt(tcpip.ReceiveBufferSizeOption, TCP_WRITE_BUFFER_SIZE)
 
 	if err != nil {
 		plog.Errorf("dst:%v:%v set endpoint fail,%v", r.ID().LocalAddress, r.ID().LocalPort, err)
@@ -352,7 +372,7 @@ func (lf *Forwarder) forwardTCP(r *tcp.ForwarderRequest) {
 		return
 	}
 
-	err = ep.SetSockOptInt(tcpip.SendBufferSizeOption, TCP_WRITE_BUFFER_SIZE)
+	err = ep.SetSockOptInt(tcpip.SendBufferSizeOption, TCP_READ_BUFFER_SIZE)
 
 	if err != nil {
 		plog.Errorf("dst:%v:%v set endpoint fail,%v", r.ID().LocalAddress, r.ID().LocalPort, err)
@@ -382,16 +402,24 @@ func (lf *Forwarder) forwardTCP(r *tcp.ForwarderRequest) {
 			return
 		}
 
+		defer r.Complete(false)
+
+		defer conn.Close()
+
+		lconn := gonet.NewConn(wq, ep)
+
+		defer lconn.Close()
+
 		wg := &sync.WaitGroup{}
 		wg.Add(2)
 		var up, down int64
 
 		go func() {
-			up = lf.tcpRead(r, wq, ep, conn, wg)
+			up = lf.copyStream(conn, lconn, time.Duration(time.Second*CONNECTION_IDLE_TIME), wg)
 		}()
 
 		go func() {
-			down = lf.tcpWrite(r, wq, ep, conn, wg)
+			down = lf.copyStream(lconn, conn, time.Duration(time.Second*CONNECTION_IDLE_TIME), wg)
 		}()
 
 		wg.Wait()
@@ -401,101 +429,6 @@ func (lf *Forwarder) forwardTCP(r *tcp.ForwarderRequest) {
 
 	}()
 
-}
-
-func (lf *Forwarder) tcpRead(r *tcp.ForwarderRequest, wq *waiter.Queue, ep tcpip.Endpoint, conn net.Conn, wg *sync.WaitGroup) (n int64) {
-	defer func() {
-		plog.Debug(r.ID(), "tcp closed")
-		r.Complete(true)
-		ep.Close()
-		conn.Close()
-		wg.Done()
-	}()
-
-	defer PanicHandler()
-
-	// Create wait queue entry that notifies a channel.
-	waitEntry, notifyCh := waiter.NewChannelEntry(nil)
-
-	wq.EventRegister(&waitEntry, waiter.EventIn)
-	defer wq.EventUnregister(&waitEntry)
-
-	// Create wait queue entry that notifies a channel.
-	gwaitEntry, gnotifyCh := waiter.NewChannelEntry(nil)
-
-	lf.wq.EventRegister(&gwaitEntry, waiter.EventIn)
-	defer lf.wq.EventUnregister(&gwaitEntry)
-
-	wch := make(chan []byte, CH_WRITE_SIZE)
-
-	defer close(wch)
-
-	writer := func() {
-		defer PanicHandler()
-
-		for {
-			pkt, ok := <-wch
-			if !ok {
-				plog.Debug("wch closed,exit write process")
-				return
-			} else {
-				nw, err1 := conn.Write(pkt)
-				n += int64(nw)
-				if err1 != nil {
-					if err1 != io.EOF && !strings.Contains(err1.Error(), "close") {
-						plog.Infof("tcp %v conn write error,%v", conn.RemoteAddr().String(), err1)
-					}
-					return
-				}
-			}
-		}
-	}
-
-	go writer()
-
-	for {
-		v, _, err := ep.Read(nil)
-		if err != nil {
-
-			if err == tcpip.ErrWouldBlock {
-				select {
-				case <-notifyCh:
-					continue
-				case <-gnotifyCh:
-					return
-				}
-
-			} else if err != tcpip.ErrClosedForReceive && err != tcpip.ErrClosedForSend {
-				plog.Infof("tcp %s:%d endpoint read fail,%v", r.ID().LocalAddress.String(), r.ID().LocalPort, err)
-			}
-			return
-		}
-		wch <- v
-	}
-}
-
-func (lf *Forwarder) tcpWrite(r *tcp.ForwarderRequest, wq *waiter.Queue, ep tcpip.Endpoint, conn net.Conn, wg *sync.WaitGroup) (n int64) {
-	defer func() {
-		ep.Close()
-		conn.Close()
-		wg.Done()
-	}()
-	defer PanicHandler()
-
-	for {
-		var buf []byte = make([]byte, TCP_MAX_BUFFER_SIZE)
-		nr, err := conn.Read(buf)
-		if err != nil {
-			if err != io.EOF && !strings.Contains(err.Error(), "close") {
-				plog.Infof("tcp %v conn read error,%v", conn.RemoteAddr().String(), err)
-			}
-			break
-		}
-		n += int64(nr)
-
-		ep.Write(tcpip.SlicePayload(buf[:nr]), tcpip.WriteOptions{})
-	}
-	return
 }
 
 func (lf *Forwarder) forwardUDP(r *udp.ForwarderRequest) {
@@ -518,31 +451,47 @@ func (lf *Forwarder) forwardUDP(r *udp.ForwarderRequest) {
 
 		plog.Infof("src:%s:%d=>dst:%s:%d udp dns query", r.ID().RemoteAddress.String(), r.ID().RemotePort, r.ID().LocalAddress.String(), r.ID().LocalPort)
 
+		err = ep.SetSockOptInt(tcpip.ReceiveBufferSizeOption, 4096)
+
+		if err != nil {
+			plog.Errorf("dst:%v:%v set endpoint fail,%v", r.ID().LocalAddress, r.ID().LocalPort, err)
+			ep.Close()
+			return
+		}
+
+		err = ep.SetSockOptInt(tcpip.SendBufferSizeOption, 4096)
+
+		if err != nil {
+			plog.Errorf("dst:%v:%v set endpoint fail,%v", r.ID().LocalAddress, r.ID().LocalPort, err)
+			ep.Close()
+			return
+		}
+
 		go func() {
+
+			lconn := gonet.NewUDPConn(wq, ep)
+			defer lconn.Close()
 
 			query, err := lf.getDNSQuery()
 
 			if err != nil {
 				plog.Errorf("dst:%s:%d udp dns query remote connect create fail,%s", r.ID().LocalAddress.String(), r.ID().LocalPort, err.Error())
-				ep.Close()
 				return
 			}
 
-			var addr tcpip.FullAddress
+			buf := make([]byte, MAX_BUFFER_SIZE)
 
-			v, _, err1 := ep.Read(&addr)
+			n, err := lconn.Read(buf)
 
-			if err1 != nil {
-				plog.Errorf("dst:%s:%d udp dns query read fail,%s", r.ID().LocalAddress.String(), r.ID().LocalPort, err1.String())
-				ep.Close()
+			if err != nil {
+				plog.Errorf("dst:%s:%d udp dns query read fail,%s", r.ID().LocalAddress.String(), r.ID().LocalPort, err.Error())
 				return
 			}
 
-			rch, err := query.Query(r.ID().RemoteAddress.String()+":"+strconv.Itoa(int(r.ID().RemotePort)), r.ID().LocalAddress.String()+":"+strconv.Itoa(int(r.ID().LocalPort)), v)
+			rch, err := query.Query(r.ID().RemoteAddress.String()+":"+strconv.Itoa(int(r.ID().RemotePort)), r.ID().LocalAddress.String()+":"+strconv.Itoa(int(r.ID().LocalPort)), buf[:n])
 
 			if err != nil {
 				plog.Errorf("dst:%s:%d udp dns query fail,%s", r.ID().LocalAddress.String(), r.ID().LocalPort, err.Error())
-				ep.Close()
 				return
 			}
 
@@ -550,15 +499,13 @@ func (lf *Forwarder) forwardUDP(r *udp.ForwarderRequest) {
 
 			if !ok {
 				plog.Errorf("dst:%s:%d udp dns query fail,read channel closed", r.ID().LocalAddress.String(), r.ID().LocalPort)
-				ep.Close()
 				return
 			}
 
-			_, _, err2 := ep.Write(tcpip.SlicePayload(data), tcpip.WriteOptions{To: &addr})
+			_, err = lconn.Write(data)
 
-			if err2 != nil {
-				plog.Infof("dst:%s:%d udp dns query fail,write fail,%v", r.ID().LocalAddress.String(), r.ID().LocalPort, err2)
-				ep.Close()
+			if err != nil {
+				plog.Infof("dst:%s:%d udp dns query fail,write fail,%v", r.ID().LocalAddress.String(), r.ID().LocalPort, err)
 				return
 			}
 			plog.Infof("src:%s:%d=>dst:%s:%d udp dns query ok", r.ID().RemoteAddress.String(), r.ID().RemotePort, r.ID().LocalAddress.String(), r.ID().LocalPort)
@@ -587,19 +534,22 @@ func (lf *Forwarder) forwardUDP(r *udp.ForwarderRequest) {
 			return
 		}
 
-		timer := time.NewTicker(time.Second * 5)
-		addr := &tcpip.FullAddress{Addr: r.ID().RemoteAddress, Port: r.ID().RemotePort}
+		defer conn.Close()
+
+		lconn := gonet.NewUDPConn(wq, ep)
+
+		defer lconn.Close()
 
 		wg := &sync.WaitGroup{}
 		wg.Add(2)
 		var up, down int64
 
 		go func() {
-			up = lf.udpRead(r, ep, wq, conn, timer, wg)
+			up = lf.copyStream(conn, lconn, time.Duration(time.Second*CONNECTION_IDLE_TIME), wg)
 		}()
 
 		go func() {
-			down = lf.udpWrite(r, ep, wq, conn, addr, wg)
+			down = lf.copyStream(lconn, conn, time.Duration(time.Second*CONNECTION_IDLE_TIME), wg)
 		}()
 
 		wg.Wait()
@@ -611,120 +561,4 @@ func (lf *Forwarder) forwardUDP(r *udp.ForwarderRequest) {
 
 	}()
 
-}
-
-func (lf *Forwarder) udpRead(r *udp.ForwarderRequest, ep tcpip.Endpoint, wq *waiter.Queue, conn net.Conn, timer *time.Ticker, wg *sync.WaitGroup) (n int64) {
-
-	defer func() {
-		plog.Debug(r.ID(), "udp closed")
-		ep.Close()
-		conn.Close()
-		wg.Done()
-	}()
-
-	defer PanicHandler()
-
-	waitEntry, notifyCh := waiter.NewChannelEntry(nil)
-	wq.EventRegister(&waitEntry, waiter.EventIn)
-	defer wq.EventUnregister(&waitEntry)
-
-	gwaitEntry, gnotifyCh := waiter.NewChannelEntry(nil)
-
-	lf.wq.EventRegister(&gwaitEntry, waiter.EventIn)
-	defer lf.wq.EventUnregister(&gwaitEntry)
-
-	wch := make(chan []byte, CH_WRITE_SIZE)
-
-	defer close(wch)
-
-	writer := func() {
-		defer PanicHandler()
-
-		for {
-			pkt, ok := <-wch
-			if !ok {
-				plog.Debug("udp wch closed,exit write process")
-				return
-			} else {
-				nw, err1 := conn.Write(pkt)
-				n += int64(nw)
-				if err1 != nil {
-					if err1 != io.EOF && !strings.Contains(err1.Error(), "close") {
-						plog.Infof("udp conn %v write error:%v", conn.RemoteAddr().String(), err1)
-					}
-					return
-				}
-			}
-		}
-	}
-
-	go writer()
-
-	lastTime := time.Now()
-
-	for {
-		var addr tcpip.FullAddress
-		v, _, err := ep.Read(&addr)
-		if err != nil {
-			if err == tcpip.ErrWouldBlock {
-
-				select {
-				case <-notifyCh:
-					continue
-				case <-gnotifyCh:
-					return
-				case <-timer.C:
-					if time.Now().Sub(lastTime) > time.Second*UDP_CONNECTION_IDLE_TIME {
-						plog.Infof("udp %s:%d connection expired,close it", r.ID().LocalAddress.String(), r.ID().LocalPort)
-						timer.Stop()
-						return
-					} else {
-						continue
-					}
-				}
-			} else if err != tcpip.ErrClosedForReceive && err != tcpip.ErrClosedForSend {
-				plog.Infof("udp ep %s:%d read fail,%v", r.ID().LocalAddress.String(), r.ID().LocalPort, err)
-			}
-			return
-		}
-
-		wch <- v
-		lastTime = time.Now()
-	}
-}
-
-func (lf *Forwarder) udpWrite(r *udp.ForwarderRequest, ep tcpip.Endpoint, wq *waiter.Queue, conn net.Conn, addr *tcpip.FullAddress, wg *sync.WaitGroup) (n int64) {
-
-	defer func() {
-		ep.Close()
-		conn.Close()
-		wg.Done()
-	}()
-
-	defer PanicHandler()
-
-	for {
-		var udppkg []byte = make([]byte, UDP_MAX_BUFFER_SIZE)
-		nr, err1 := conn.Read(udppkg)
-
-		if err1 != nil {
-			if err1 != io.EOF &&
-				!strings.Contains(err1.Error(), "close") &&
-				!strings.Contains(err1.Error(), "connection refused") {
-				plog.Infof("udp conn %v read error,%v", conn.RemoteAddr().String(), err1)
-			}
-			return
-		}
-		n += int64(nr)
-		udppkg1 := udppkg[:nr]
-		_, _, err := ep.Write(tcpip.SlicePayload(udppkg1), tcpip.WriteOptions{To: addr})
-		if err != nil {
-			plog.Infof("udp ep %s:%d write fail,%v", r.ID().LocalAddress.String(), r.ID().LocalPort, err)
-			return
-		}
-
-		if r.ID().LocalPort == 53 || r.ID().LocalPort == 853 {
-			return
-		}
-	}
 }
