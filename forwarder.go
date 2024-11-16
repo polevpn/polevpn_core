@@ -449,23 +449,7 @@ func (lf *Forwarder) forwardUDP(r *udp.ForwarderRequest) {
 
 	if r.ID().LocalAddress.String() == "1.1.1.1" || r.ID().LocalAddress.String() == "8.8.8.8" || r.ID().LocalAddress.String() == "8.8.4.4" {
 
-		plog.Infof("src:%s:%d=>dst:%s:%d udp dns query", r.ID().RemoteAddress.String(), r.ID().RemotePort, r.ID().LocalAddress.String(), r.ID().LocalPort)
-
-		err = ep.SetSockOptInt(tcpip.ReceiveBufferSizeOption, 4096)
-
-		if err != nil {
-			plog.Errorf("dst:%v:%v set endpoint fail,%v", r.ID().LocalAddress, r.ID().LocalPort, err)
-			ep.Close()
-			return
-		}
-
-		err = ep.SetSockOptInt(tcpip.SendBufferSizeOption, 4096)
-
-		if err != nil {
-			plog.Errorf("dst:%v:%v set endpoint fail,%v", r.ID().LocalAddress, r.ID().LocalPort, err)
-			ep.Close()
-			return
-		}
+		plog.Debugf("src:%s:%d=>dst:%s:%d udp dns query", r.ID().RemoteAddress.String(), r.ID().RemotePort, r.ID().LocalAddress.String(), r.ID().LocalPort)
 
 		go func() {
 
@@ -505,10 +489,10 @@ func (lf *Forwarder) forwardUDP(r *udp.ForwarderRequest) {
 			_, err = lconn.Write(data)
 
 			if err != nil {
-				plog.Infof("dst:%s:%d udp dns query fail,write fail,%v", r.ID().LocalAddress.String(), r.ID().LocalPort, err)
+				plog.Errorf("dst:%s:%d udp dns query fail,write fail,%v", r.ID().LocalAddress.String(), r.ID().LocalPort, err)
 				return
 			}
-			plog.Infof("src:%s:%d=>dst:%s:%d udp dns query ok", r.ID().RemoteAddress.String(), r.ID().RemotePort, r.ID().LocalAddress.String(), r.ID().LocalPort)
+			plog.Debugf("src:%s:%d=>dst:%s:%d udp dns query ok", r.ID().RemoteAddress.String(), r.ID().RemotePort, r.ID().LocalAddress.String(), r.ID().LocalPort)
 
 		}()
 
