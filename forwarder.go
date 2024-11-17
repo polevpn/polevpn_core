@@ -143,7 +143,7 @@ func (lf *Forwarder) Write(pkg []byte) {
 	if lf.closed {
 		return
 	}
-	pkgBuffer := tcpip.PacketBuffer{Data: buffer.NewViewFromBytes(pkg).ToVectorisedView()}
+	pkgBuffer := tcpip.PacketBuffer{Data: buffer.View(pkg).ToVectorisedView()}
 	lf.ep.InjectInbound(ipv4.ProtocolNumber, pkgBuffer)
 }
 
