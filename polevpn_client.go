@@ -40,7 +40,7 @@ const (
 )
 
 const (
-	MAX_LOG_BUFFER_SIZE = 50 * 1024
+	MAX_LOG_BUFFER_SIZE = 1024
 )
 
 var plog *elog.EasyLogger
@@ -48,13 +48,13 @@ var plog *elog.EasyLogger
 func init() {
 	if plog == nil {
 		plog = elog.GetLogger()
-		plog.SetLogBufferSize(MAX_BUFFER_SIZE)
+		plog.SetLogBufferSize(MAX_LOG_BUFFER_SIZE)
 	}
 }
 
 func SetLogger(elog *elog.EasyLogger) {
 	plog = elog
-	plog.SetLogBufferSize(MAX_BUFFER_SIZE)
+	plog.SetLogBufferSize(MAX_LOG_BUFFER_SIZE)
 }
 
 type PoleVpnClient interface {
