@@ -383,51 +383,45 @@ func (lf *Forwarder) forwardTCP(r *tcp.ForwarderRequest) {
 
 	plog.Debugf("src:%s:%d=>dst:%s:%d tcp connect", r.ID().RemoteAddress.String(), r.ID().RemotePort, r.ID().LocalAddress.String(), r.ID().LocalPort)
 
+	defer PanicHandler()
+
+	addr, _ := ep.GetLocalAddress()
+	raddr := addr.Addr.String() + ":" + strconv.Itoa(int(addr.Port))
+
+	var conn net.Conn
+	var remoteErr error
+
+	conn, remoteErr = lf.getRemoteWSConn(raddr, "tcp")
+
+	if remoteErr != nil {
+		plog.Errorf("dst:%s:%d create tcp remote connect fail,%s", r.ID().LocalAddress.String(), r.ID().LocalPort, remoteErr.Error())
+		r.Complete(true)
+		ep.Close()
+		return
+	}
+
+	defer r.Complete(false)
+
+	defer conn.Close()
+
+	lconn := gonet.NewConn(wq, ep)
+
+	defer lconn.Close()
+
+	wg := &sync.WaitGroup{}
+	wg.Add(2)
+	var up, down int64
+
 	go func() {
-
-		defer PanicHandler()
-
-		addr, _ := ep.GetLocalAddress()
-		raddr := addr.Addr.String() + ":" + strconv.Itoa(int(addr.Port))
-
-		var conn net.Conn
-		var remoteErr error
-
-		conn, remoteErr = lf.getRemoteWSConn(raddr, "tcp")
-
-		if remoteErr != nil {
-			plog.Errorf("dst:%s:%d create tcp remote connect fail,%s", r.ID().LocalAddress.String(), r.ID().LocalPort, remoteErr.Error())
-			r.Complete(true)
-			ep.Close()
-			return
-		}
-
-		defer r.Complete(false)
-
-		defer conn.Close()
-
-		lconn := gonet.NewConn(wq, ep)
-
-		defer lconn.Close()
-
-		wg := &sync.WaitGroup{}
-		wg.Add(2)
-		var up, down int64
-
-		go func() {
-			up = lf.copyStream(conn, lconn, time.Duration(time.Second*CONNECTION_IDLE_TIME), wg)
-		}()
-
-		go func() {
-			down = lf.copyStream(lconn, conn, time.Duration(time.Second*CONNECTION_IDLE_TIME), wg)
-		}()
-
-		wg.Wait()
-		lf.up += uint64(up)
-		lf.down += uint64(down)
-		plog.Debugf("dst:%s,up:%d,down:%d tcp completed", raddr, up, down)
-
+		up = lf.copyStream(conn, lconn, time.Duration(time.Second*CONNECTION_IDLE_TIME), wg)
 	}()
+
+	down = lf.copyStream(lconn, conn, time.Duration(time.Second*CONNECTION_IDLE_TIME), wg)
+
+	wg.Wait()
+	lf.up += uint64(up)
+	lf.down += uint64(down)
+	plog.Debugf("dst:%s,up:%d,down:%d tcp completed", raddr, up, down)
 
 }
 
@@ -447,7 +441,7 @@ func (lf *Forwarder) forwardUDP(r *udp.ForwarderRequest) {
 		return
 	}
 
-	if r.ID().LocalAddress.String() == "1.1.1.1" || r.ID().LocalAddress.String() == "8.8.8.8" || r.ID().LocalAddress.String() == "8.8.4.4" {
+	if (r.ID().LocalAddress.String() == "1.1.1.1" || r.ID().LocalAddress.String() == "8.8.8.8" || r.ID().LocalAddress.String() == "8.8.4.4") && r.ID().LocalPort == 53 {
 
 		plog.Debugf("src:%s:%d=>dst:%s:%d udp dns query", r.ID().RemoteAddress.String(), r.ID().RemotePort, r.ID().LocalAddress.String(), r.ID().LocalPort)
 
@@ -532,9 +526,7 @@ func (lf *Forwarder) forwardUDP(r *udp.ForwarderRequest) {
 			up = lf.copyStream(conn, lconn, time.Duration(time.Second*CONNECTION_IDLE_TIME), wg)
 		}()
 
-		go func() {
-			down = lf.copyStream(lconn, conn, time.Duration(time.Second*CONNECTION_IDLE_TIME), wg)
-		}()
+		down = lf.copyStream(lconn, conn, time.Duration(time.Second*CONNECTION_IDLE_TIME), wg)
 
 		wg.Wait()
 
