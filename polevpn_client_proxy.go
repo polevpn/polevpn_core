@@ -272,7 +272,7 @@ func (pc *PoleVpnClientProxy) askAllocIPAddress() {
 	av := anyvalue.New()
 
 	av.Set("ip", "23.23.23.23")
-	av.Set("dns", "8.8.8.8")
+	av.Set("dns", "1.1.1.1")
 	av.Set("route", []string{})
 
 	if pc.handler != nil {
