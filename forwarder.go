@@ -363,6 +363,12 @@ func (lf *Forwarder) forwardTCP(r *tcp.ForwarderRequest) {
 		return
 	}
 
+	if r.ID().LocalPort == 53 || r.ID().LocalPort == 853 {
+		r.Complete(true)
+		ep.Close()
+		return
+	}
+
 	err = ep.SetSockOptInt(tcpip.ReceiveBufferSizeOption, TCP_WRITE_BUFFER_SIZE)
 
 	if err != nil {
@@ -441,7 +447,12 @@ func (lf *Forwarder) forwardUDP(r *udp.ForwarderRequest) {
 		return
 	}
 
-	if (r.ID().LocalAddress.String() == "1.1.1.1" || r.ID().LocalAddress.String() == "8.8.8.8" || r.ID().LocalAddress.String() == "8.8.4.4") && r.ID().LocalPort == 53 {
+	if r.ID().LocalPort == 853 {
+		ep.Close()
+		return
+	}
+
+	if r.ID().LocalPort == 53 {
 
 		plog.Debugf("src:%s:%d=>dst:%s:%d udp dns query", r.ID().RemoteAddress.String(), r.ID().RemotePort, r.ID().LocalAddress.String(), r.ID().LocalPort)
 

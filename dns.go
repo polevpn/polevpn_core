@@ -235,7 +235,7 @@ func (dq *DNSQuery) Query(src string, dst string, pkt []byte) (chan []byte, erro
 	dq.mutex.RLock()
 	defer dq.mutex.RUnlock()
 
-	if dq.IsClosed() {
+	if dq.closed {
 		return nil, errors.New("dns connection is closed,can't send pkt")
 	}
 
