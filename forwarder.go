@@ -18,6 +18,7 @@ import (
 	"github.com/polevpn/netstack/tcpip/link/channel"
 	"github.com/polevpn/netstack/tcpip/network/arp"
 	"github.com/polevpn/netstack/tcpip/network/ipv4"
+	"github.com/polevpn/netstack/tcpip/network/ipv6"
 	"github.com/polevpn/netstack/tcpip/stack"
 	"github.com/polevpn/netstack/tcpip/transport/tcp"
 	"github.com/polevpn/netstack/tcpip/transport/udp"
@@ -69,7 +70,7 @@ func NewForwarder(proxy string, user string, token string, sni string) (*Forward
 	// Create the stack with ip and tcp protocols, then add a tun-based
 	// NIC and address.
 	s := stack.New(stack.Options{
-		NetworkProtocols:   []stack.NetworkProtocol{ipv4.NewProtocol(), arp.NewProtocol()},
+		NetworkProtocols:   []stack.NetworkProtocol{ipv4.NewProtocol(), ipv6.NewProtocol(), arp.NewProtocol()},
 		TransportProtocols: []stack.TransportProtocol{tcp.NewProtocol(), udp.NewProtocol()},
 	})
 
@@ -79,7 +80,11 @@ func NewForwarder(proxy string, user string, token string, sni string) (*Forward
 		return nil, errors.New(err.String())
 	}
 
-	subnet1, err := tcpip.NewSubnet(tcpip.Address(net.IPv4(0, 0, 0, 0).To4()), tcpip.AddressMask(net.IPv4Mask(0, 0, 0, 0)))
+	if err := s.AddAddress(1, arp.ProtocolNumber, arp.ProtocolAddress); err != nil {
+		return nil, errors.New(err.String())
+	}
+
+	subnet1, err := tcpip.NewSubnet(tcpip.Address(net.IPv4zero.To4()), tcpip.AddressMask(net.IPv4zero.To4()))
 	if err != nil {
 		return nil, err
 	}
@@ -88,18 +93,23 @@ func NewForwarder(proxy string, user string, token string, sni string) (*Forward
 		return nil, errors.New(err.String())
 	}
 
-	if err := s.AddAddress(1, arp.ProtocolNumber, arp.ProtocolAddress); err != nil {
-		return nil, errors.New(err.String())
-	}
-
-	subnet, err := tcpip.NewSubnet(tcpip.Address(net.IPv4(0, 0, 0, 0).To4()), tcpip.AddressMask(net.IPv4Mask(0, 0, 0, 0)))
+	subnet2, err := tcpip.NewSubnet(tcpip.Address(net.IPv6zero.To16()), tcpip.AddressMask(net.IPv6zero.To16()))
 	if err != nil {
 		return nil, err
 	}
+
+	if err := s.AddAddressRange(1, ipv6.ProtocolNumber, subnet2); err != nil {
+		return nil, errors.New(err.String())
+	}
+
 	// Add default route.
 	s.SetRouteTable([]tcpip.Route{
 		{
-			Destination: subnet,
+			Destination: subnet1,
+			NIC:         1,
+		},
+		{
+			Destination: subnet2,
 			NIC:         1,
 		},
 	})
@@ -144,10 +154,20 @@ func (lf *Forwarder) Write(pkg []byte) {
 		return
 	}
 	pkgBuffer := tcpip.PacketBuffer{Data: buffer.View(pkg).ToVectorisedView()}
-	lf.ep.InjectInbound(ipv4.ProtocolNumber, pkgBuffer)
+
+	version := pkg[0]
+	version = version >> 4
+
+	if version == VERSION_IP_V4 {
+		lf.ep.InjectInbound(ipv4.ProtocolNumber, pkgBuffer)
+	} else if version == VERSION_IP_V6 {
+		lf.ep.InjectInbound(ipv6.ProtocolNumber, pkgBuffer)
+	}
+
 }
 
 func (lf *Forwarder) read() {
+
 	for {
 		pkgInfo, err := lf.ep.Read()
 		if err != nil {
@@ -254,7 +274,7 @@ func (lf *Forwarder) GetUpDownBytes() (uint64, uint64) {
 	return lf.up, lf.down
 }
 
-func (lf *Forwarder) getRemoteWSConn(raddr string, proto string) (net.Conn, error) {
+func (lf *Forwarder) getRemoteWSConn(ip string, port uint16, proto string) (net.Conn, error) {
 	var err error
 
 	tlsconfig := &tls.Config{
@@ -290,14 +310,14 @@ func (lf *Forwarder) getRemoteWSConn(raddr string, proto string) (net.Conn, erro
 		EnableCompression: false,
 	}
 
-	dstAddress := strings.Split(raddr, ":")
-	dst := dstAddress[0]
-	port := dstAddress[1]
-
 	header := http.Header{}
 
-	header.Add("Dst", dst)
-	header.Add("Port", port)
+	if strings.Contains(ip, ":") {
+		ip = "[" + ip + "]"
+	}
+
+	header.Add("Dst", ip)
+	header.Add("Port", strconv.Itoa(int(port)))
 	header.Add("User", lf.user)
 	header.Add("Token", lf.token)
 	header.Add("Proto", proto)
@@ -330,7 +350,7 @@ func (lf *Forwarder) copyStream(dst net.Conn, src net.Conn, waitTime time.Durati
 
 		if nr > 0 {
 			if nw, err := dst.Write(buf[:nr]); err != nil {
-				plog.Debugf(err.Error())
+				plog.Debugf("%v->%v,%v", dst.LocalAddr().String(), dst.RemoteAddr().String(), err.Error())
 				break
 			} else {
 				n += int64(nw)
@@ -338,7 +358,7 @@ func (lf *Forwarder) copyStream(dst net.Conn, src net.Conn, waitTime time.Durati
 		}
 
 		if err != nil {
-			plog.Debugf(err.Error())
+			plog.Debugf("%v->%v,%v", src.LocalAddr().String(), src.RemoteAddr().String(), err.Error())
 			break
 		}
 	}
@@ -392,12 +412,11 @@ func (lf *Forwarder) forwardTCP(r *tcp.ForwarderRequest) {
 	defer PanicHandler()
 
 	addr, _ := ep.GetLocalAddress()
-	raddr := addr.Addr.String() + ":" + strconv.Itoa(int(addr.Port))
 
 	var conn net.Conn
 	var remoteErr error
 
-	conn, remoteErr = lf.getRemoteWSConn(raddr, "tcp")
+	conn, remoteErr = lf.getRemoteWSConn(addr.Addr.String(), addr.Port, "tcp")
 
 	if remoteErr != nil {
 		plog.Errorf("dst:%s:%d create tcp remote connect fail,%s", r.ID().LocalAddress.String(), r.ID().LocalPort, remoteErr.Error())
@@ -419,7 +438,10 @@ func (lf *Forwarder) forwardTCP(r *tcp.ForwarderRequest) {
 	var up, down int64
 
 	go func() {
+		defer PanicHandler()
 		up = lf.copyStream(conn, lconn, time.Duration(time.Second*CONNECTION_IDLE_TIME), wg)
+		conn.Close()
+		lconn.Close()
 	}()
 
 	down = lf.copyStream(lconn, conn, time.Duration(time.Second*CONNECTION_IDLE_TIME), wg)
@@ -427,7 +449,7 @@ func (lf *Forwarder) forwardTCP(r *tcp.ForwarderRequest) {
 	wg.Wait()
 	lf.up += uint64(up)
 	lf.down += uint64(down)
-	plog.Debugf("dst:%s,up:%d,down:%d tcp completed", raddr, up, down)
+	plog.Debugf("dst:%s:%v,up:%d,down:%d tcp completed", r.ID().LocalAddress.String(), r.ID().LocalPort, up, down)
 
 }
 
@@ -513,9 +535,7 @@ func (lf *Forwarder) forwardUDP(r *udp.ForwarderRequest) {
 		var conn net.Conn
 		var remoteErr error
 
-		raddr := r.ID().LocalAddress.String() + ":" + strconv.Itoa(int(r.ID().LocalPort))
-
-		conn, remoteErr = lf.getRemoteWSConn(raddr, "udp")
+		conn, remoteErr = lf.getRemoteWSConn(r.ID().LocalAddress.String(), r.ID().LocalPort, "udp")
 
 		if remoteErr != nil {
 			plog.Errorf("dst:%s:%d udp remote connect create fail,%s", r.ID().LocalAddress.String(), r.ID().LocalPort, remoteErr.Error())
@@ -534,7 +554,10 @@ func (lf *Forwarder) forwardUDP(r *udp.ForwarderRequest) {
 		var up, down int64
 
 		go func() {
+			defer PanicHandler()
 			up = lf.copyStream(conn, lconn, time.Duration(time.Second*CONNECTION_IDLE_TIME), wg)
+			conn.Close()
+			lconn.Close()
 		}()
 
 		down = lf.copyStream(lconn, conn, time.Duration(time.Second*CONNECTION_IDLE_TIME), wg)
@@ -544,7 +567,7 @@ func (lf *Forwarder) forwardUDP(r *udp.ForwarderRequest) {
 		lf.up += uint64(up)
 		lf.down += uint64(down)
 
-		plog.Debugf("dst:%s,up:%d,down:%d udp completed", raddr, up, down)
+		plog.Debugf("dst:%s:%v,up:%d,down:%d udp completed", r.ID().LocalAddress.String(), r.ID().LocalPort, up, down)
 
 	}()
 

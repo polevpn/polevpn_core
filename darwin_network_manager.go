@@ -24,6 +24,12 @@ func (nm *DarwinNetworkManager) setIPAddressAndEnable(tundev string, ip1 string)
 	if err != nil {
 		return errors.New(err.Error() + "," + string(out))
 	}
+
+	// out, err = ExecuteCommand("bash", "-c", "ifconfig "+tundev+" inet6 add 2001:2323:2323:2323:2323:2323:2323:2323/128 up")
+	// if err != nil {
+	// 	return errors.New(err.Error() + "," + string(out))
+	// }
+
 	return nil
 }
 
@@ -111,6 +117,8 @@ func (nm *DarwinNetworkManager) getNetServiceeDns() (string, string, error) {
 }
 
 func (nm *DarwinNetworkManager) addRoute(cidr string, gw string) error {
+
+	//sudo route -n add -inet6 2606:4700:4700::1111/128 2001::2323:2323:2323:2323
 
 	out, err := ExecuteCommand("bash", "-c", "route -n add -net "+cidr+" "+gw)
 

@@ -252,12 +252,6 @@ func (pc *PoleVpnClientProxy) handleTunPacket(pkt []byte) {
 		return
 	}
 
-	version := pkt[0]
-	version = version >> 4
-
-	if version != VERSION_IP_V4 {
-		return
-	}
 	if pc.forwarder != nil {
 		pc.forwarder.Write(pkt)
 	}

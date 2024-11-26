@@ -32,6 +32,11 @@ func (nm *LinuxNetworkManager) setIPAddressAndEnable(tundev string, ip1 string) 
 		return errors.New(err.Error() + "," + string(out))
 	}
 
+	// out, err = ExecuteCommand("bash", "-c", "ip addr add dev "+tundev+" local 2001::2323:2323:2323:2323/64")
+	// if err != nil {
+	// 	return errors.New(err.Error() + "," + string(out))
+	// }
+
 	out, err = ExecuteCommand("bash", "-c", "ip link set "+tundev+" up")
 	if err != nil {
 		return errors.New(err.Error() + "," + string(out))

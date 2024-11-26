@@ -3,6 +3,7 @@ package core
 import (
 	"io"
 	"os"
+	"syscall"
 
 	"github.com/polevpn/water"
 )
@@ -37,6 +38,13 @@ func (itf *IosTunFile) Read(p []byte) (int, error) {
 func (itf *IosTunFile) Write(p []byte) (int, error) {
 
 	buf := make([]byte, len(p)+4)
+
+	ipVer := p[0] >> 4
+	if ipVer == VERSION_IP_V4 {
+		itf.header[3] = syscall.AF_INET
+	} else if ipVer == VERSION_IP_V6 {
+		itf.header[3] = syscall.AF_INET6
+	}
 
 	copy(buf[:4], itf.header[:])
 	copy(buf[4:], p)

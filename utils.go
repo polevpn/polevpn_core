@@ -19,6 +19,7 @@ func PanicHandler() {
 	if err := recover(); err != nil {
 		plog.Error("Panic Exception:", err)
 		plog.Error(string(debug.Stack()))
+		plog.Flush()
 	}
 }
 
@@ -27,6 +28,7 @@ func PanicHandlerExit() {
 		plog.Error("Panic Exception:", err)
 		plog.Error(string(debug.Stack()))
 		plog.Error("************Program Exit************")
+		plog.Flush()
 		os.Exit(0)
 	}
 }
