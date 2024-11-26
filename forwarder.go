@@ -207,7 +207,6 @@ func (lf *Forwarder) StartProcess() {
 }
 
 func (lf *Forwarder) ClearConnect() {
-	lf.wq.Notify(waiter.EventIn)
 }
 
 func (lf *Forwarder) Close() {
@@ -408,8 +407,6 @@ func (lf *Forwarder) forwardTCP(r *tcp.ForwarderRequest) {
 	}
 
 	plog.Debugf("src:%s:%d=>dst:%s:%d tcp connect", r.ID().RemoteAddress.String(), r.ID().RemotePort, r.ID().LocalAddress.String(), r.ID().LocalPort)
-
-	defer PanicHandler()
 
 	addr, _ := ep.GetLocalAddress()
 
