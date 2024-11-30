@@ -5,6 +5,7 @@ import (
 	"net"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 type WindowsNetworkManager struct {
@@ -288,31 +289,8 @@ func (nm *WindowsNetworkManager) SetNetwork(device string, ip string, remoteIp s
 		return errors.New("set address fail," + err.Error())
 	}
 
-	err = nm.setDeviceMetric(device, "1")
-
-	if err != nil {
-		return errors.New("set address fail," + err.Error())
-	}
-
-	err = nm.setIpv4Priority()
-
-	if err != nil {
-		plog.Errorf("set ipv4 priority fail,%v", err)
-		return err
-	}
-
-	err = nm.disableIpv6()
-
-	if err != nil {
-		plog.Errorf("disable ipv6 fail,%v", err)
-		return err
-	}
-
-	err = nm.flushDns()
-
-	if err != nil {
-		plog.Errorf("flushdns fail,%v", err)
-	}
+	go nm.disableIpv6()
+	go nm.flushDns()
 
 	_, network, err := net.ParseCIDR(ip + "/30")
 	if err != nil {
@@ -370,14 +348,34 @@ func (nm *WindowsNetworkManager) SetNetwork(device string, ip string, remoteIp s
 		}
 	}
 
+	wg := sync.WaitGroup{}
+
+	ech := make(chan error, len(routes))
+
+	defer close(ech)
+
 	for _, route := range routes {
-		plog.Info("add route ", route, " via ", gateway)
-		nm.delRoute(route)
-		err = nm.addRoute(route, gateway, device)
-		if err != nil {
-			return errors.New("add route fail," + err.Error())
-		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			plog.Info("add route ", route, " via ", gateway)
+			nm.delRoute(route)
+			err := nm.addRoute(route, gateway, device)
+
+			if err != nil {
+				ech <- errors.New("add route fail," + err.Error())
+			}
+		}()
 	}
+
+	wg.Wait()
+
+	select {
+	case err = <-ech:
+		return err
+	default:
+	}
+
 	return nil
 }
 

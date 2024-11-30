@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/miekg/dns"
 	"github.com/polevpn/anyvalue"
 )
 
@@ -47,6 +48,9 @@ func NewDNSQuery() *DNSQuery {
 
 func (dq *DNSQuery) Connect(endpoint string, user string, token string, sni string) error {
 
+	dq.mutex.Lock()
+	defer dq.mutex.Unlock()
+
 	var err error
 
 	tlsconfig := &tls.Config{
@@ -73,9 +77,6 @@ func (dq *DNSQuery) Connect(endpoint string, user string, token string, sni stri
 		return ErrNetwork
 	}
 
-	dq.mutex.Lock()
-	defer dq.mutex.Unlock()
-
 	dq.conn = conn
 	dq.wch = make(chan []byte, CH_DNS_WRITE_SIZE)
 	dq.closed = false
@@ -83,6 +84,7 @@ func (dq *DNSQuery) Connect(endpoint string, user string, token string, sni stri
 	dq.timer = time.NewTicker(time.Second)
 
 	go func() {
+
 		for range dq.timer.C {
 
 			dq.natMutex.Lock()
@@ -175,6 +177,20 @@ func (dq *DNSQuery) read() {
 			return
 		}
 
+		respDns := &dns.Msg{}
+
+		err = respDns.Unpack(data)
+
+		if err != nil {
+			plog.Error(dq.String(), " dns data unpack fail,", err)
+			return
+		}
+
+		if len(respDns.Question) == 0 {
+			plog.Error(dq.String(), " dns question empty")
+			return
+		}
+
 		dq.natMutex.RLock()
 		session, ok := dq.nat[av.Get("src").AsStr()+av.Get("dst").AsStr()]
 		dq.natMutex.RUnlock()
@@ -254,7 +270,7 @@ func (dq *DNSQuery) Query(src string, dst string, pkt []byte) (chan []byte, erro
 	rch := make(chan []byte)
 
 	dq.natMutex.Lock()
-	dq.nat[src+dst] = &DNSSession{rch: rch, expiredAt: time.Now().Add(time.Second * 5)}
+	dq.nat[src+dst] = &DNSSession{rch: rch, expiredAt: time.Now().Add(time.Second * 2)}
 	dq.natMutex.Unlock()
 
 	if dq.wch != nil {

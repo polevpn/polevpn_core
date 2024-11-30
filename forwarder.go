@@ -30,9 +30,9 @@ const (
 	FORWARD_CH_WRITE_SIZE   = 200
 	MAX_BUFFER_SIZE         = 4096
 	CONNECTION_IDLE_TIME    = 30
-	UDP_READ_BUFFER_SIZE    = 64000
+	UDP_READ_BUFFER_SIZE    = 32000
 	UDP_WRITE_BUFFER_SIZE   = 32000
-	TCP_READ_BUFFER_SIZE    = 64000
+	TCP_READ_BUFFER_SIZE    = 32000
 	TCP_WRITE_BUFFER_SIZE   = 32000
 	CH_WRITE_SIZE           = 10
 	TCP_CONNECT_TIMEOUT     = 5
@@ -224,7 +224,7 @@ func (lf *Forwarder) Close() {
 	}
 }
 
-func (lf *Forwarder) GetLocalTCPConn(raddr string) (net.Conn, error) {
+func (lf *Forwarder) GetLocalTCPConn(ip string, port uint16) (net.Conn, error) {
 
 	var err error
 	localip := lf.localip
@@ -234,7 +234,12 @@ func (lf *Forwarder) GetLocalTCPConn(raddr string) (net.Conn, error) {
 	}
 
 	d := net.Dialer{Timeout: time.Second * TCP_CONNECT_TIMEOUT, LocalAddr: laddr}
-	conn, err := d.Dial("tcp", raddr)
+
+	if strings.Contains(ip, ":") {
+		ip = "[" + ip + "]"
+	}
+
+	conn, err := d.Dial("tcp", ip+":"+strconv.Itoa(int(port)))
 
 	if conn != nil {
 		tcpconn := conn.(*net.TCPConn)
@@ -248,7 +253,7 @@ func (lf *Forwarder) GetLocalTCPConn(raddr string) (net.Conn, error) {
 	return conn, err
 }
 
-func (lf *Forwarder) GetLocalUDPConn(raddr string) (net.Conn, error) {
+func (lf *Forwarder) GetLocalUDPConn(ip string, port uint16) (net.Conn, error) {
 
 	localip := lf.localip
 	var laddr *net.UDPAddr
@@ -256,8 +261,12 @@ func (lf *Forwarder) GetLocalUDPConn(raddr string) (net.Conn, error) {
 		laddr, _ = net.ResolveUDPAddr("udp", localip+":0")
 	}
 
-	raddr2, _ := net.ResolveUDPAddr("udp", raddr)
-	conn, err := net.DialUDP("udp", laddr, raddr2)
+	if strings.Contains(ip, ":") {
+		ip = "[" + ip + "]"
+	}
+
+	raddr, _ := net.ResolveUDPAddr("udp", ip+":"+strconv.Itoa(int(port)))
+	conn, err := net.DialUDP("udp", laddr, raddr)
 
 	if err != nil {
 		return nil, err
@@ -335,9 +344,7 @@ func (lf *Forwarder) getRemoteWSConn(ip string, port uint16, proto string) (net.
 	}
 }
 
-func (lf *Forwarder) copyStream(dst net.Conn, src net.Conn, waitTime time.Duration, wg *sync.WaitGroup) (n int64) {
-
-	defer wg.Done()
+func (lf *Forwarder) copyStream(dst net.Conn, src net.Conn, waitTime time.Duration) (n int64) {
 
 	buf := make([]byte, MAX_BUFFER_SIZE)
 
@@ -381,14 +388,12 @@ func (lf *Forwarder) forwardTCP(r *tcp.ForwarderRequest) {
 		ep.Close()
 		return
 	}
-
+	idleTime := CONNECTION_IDLE_TIME
 	if r.ID().LocalPort == 53 || r.ID().LocalPort == 853 {
-		r.Complete(true)
-		ep.Close()
-		return
+		idleTime = 0
 	}
 
-	err = ep.SetSockOptInt(tcpip.ReceiveBufferSizeOption, TCP_WRITE_BUFFER_SIZE)
+	err = ep.SetSockOptInt(tcpip.ReceiveBufferSizeOption, TCP_READ_BUFFER_SIZE)
 
 	if err != nil {
 		plog.Errorf("dst:%v:%v set endpoint fail,%v", r.ID().LocalAddress, r.ID().LocalPort, err)
@@ -397,7 +402,7 @@ func (lf *Forwarder) forwardTCP(r *tcp.ForwarderRequest) {
 		return
 	}
 
-	err = ep.SetSockOptInt(tcpip.SendBufferSizeOption, TCP_READ_BUFFER_SIZE)
+	err = ep.SetSockOptInt(tcpip.SendBufferSizeOption, TCP_WRITE_BUFFER_SIZE)
 
 	if err != nil {
 		plog.Errorf("dst:%v:%v set endpoint fail,%v", r.ID().LocalAddress, r.ID().LocalPort, err)
@@ -424,26 +429,22 @@ func (lf *Forwarder) forwardTCP(r *tcp.ForwarderRequest) {
 
 	defer r.Complete(false)
 
-	defer conn.Close()
-
 	lconn := gonet.NewConn(wq, ep)
 
-	defer lconn.Close()
-
-	wg := &sync.WaitGroup{}
-	wg.Add(2)
 	var up, down int64
 
 	go func() {
 		defer PanicHandler()
-		up = lf.copyStream(conn, lconn, time.Duration(time.Second*CONNECTION_IDLE_TIME), wg)
+		up = lf.copyStream(conn, lconn, time.Duration(time.Second*time.Duration(idleTime)))
 		conn.Close()
 		lconn.Close()
 	}()
 
-	down = lf.copyStream(lconn, conn, time.Duration(time.Second*CONNECTION_IDLE_TIME), wg)
+	down = lf.copyStream(lconn, conn, time.Duration(time.Second*time.Duration(idleTime)))
 
-	wg.Wait()
+	conn.Close()
+	lconn.Close()
+
 	lf.up += uint64(up)
 	lf.down += uint64(down)
 	plog.Debugf("dst:%s:%v,up:%d,down:%d tcp completed", r.ID().LocalAddress.String(), r.ID().LocalPort, up, down)
@@ -466,6 +467,8 @@ func (lf *Forwarder) forwardUDP(r *udp.ForwarderRequest) {
 		return
 	}
 
+	idleTime := CONNECTION_IDLE_TIME
+
 	if r.ID().LocalPort == 853 {
 		ep.Close()
 		return
@@ -476,6 +479,8 @@ func (lf *Forwarder) forwardUDP(r *udp.ForwarderRequest) {
 		plog.Debugf("src:%s:%d=>dst:%s:%d udp dns query", r.ID().RemoteAddress.String(), r.ID().RemotePort, r.ID().LocalAddress.String(), r.ID().LocalPort)
 
 		go func() {
+
+			defer PanicHandler()
 
 			lconn := gonet.NewUDPConn(wq, ep)
 			defer lconn.Close()
@@ -540,26 +545,21 @@ func (lf *Forwarder) forwardUDP(r *udp.ForwarderRequest) {
 			return
 		}
 
-		defer conn.Close()
-
 		lconn := gonet.NewUDPConn(wq, ep)
 
-		defer lconn.Close()
-
-		wg := &sync.WaitGroup{}
-		wg.Add(2)
 		var up, down int64
 
 		go func() {
 			defer PanicHandler()
-			up = lf.copyStream(conn, lconn, time.Duration(time.Second*CONNECTION_IDLE_TIME), wg)
+			up = lf.copyStream(conn, lconn, time.Duration(time.Second*time.Duration(idleTime)))
 			conn.Close()
 			lconn.Close()
 		}()
 
-		down = lf.copyStream(lconn, conn, time.Duration(time.Second*CONNECTION_IDLE_TIME), wg)
+		down = lf.copyStream(lconn, conn, time.Duration(time.Second*time.Duration(idleTime)))
 
-		wg.Wait()
+		conn.Close()
+		lconn.Close()
 
 		lf.up += uint64(up)
 		lf.down += uint64(down)
