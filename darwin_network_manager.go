@@ -307,10 +307,10 @@ func (nm *DarwinNetworkManager) RestoreNetwork() {
 	}
 
 	if nm.netservice != "" {
-		go nm.removeDnsServer(nm.netservice)
+		nm.removeDnsServer(nm.netservice)
 		if nm.sysdns != "" {
 			plog.Infof("set service %v dns to %v", nm.netservice, nm.sysdns)
-			go nm.setDnsServer(nm.sysdns, nm.netservice)
+			nm.setDnsServer(nm.sysdns, nm.netservice)
 		}
 	}
 }
