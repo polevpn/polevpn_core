@@ -388,9 +388,15 @@ func (lf *Forwarder) forwardTCP(r *tcp.ForwarderRequest) {
 		ep.Close()
 		return
 	}
+
 	idleTime := CONNECTION_IDLE_TIME
-	if r.ID().LocalPort == 53 || r.ID().LocalPort == 853 {
-		idleTime = 0
+
+	address := r.ID().LocalAddress.String()
+
+	if r.ID().LocalPort == 53 || r.ID().LocalPort == 853 || ((address == "208.67.222.222" || address == "208.67.222.220" || address == "8.8.8.8" || address == "8.8.4.4" || address == "1.1.1.1" || address == "1.0.0.1") && r.ID().LocalPort == 443) {
+		r.Complete(true)
+		ep.Close()
+		return
 	}
 
 	err = ep.SetSockOptInt(tcpip.ReceiveBufferSizeOption, TCP_READ_BUFFER_SIZE)
@@ -469,7 +475,9 @@ func (lf *Forwarder) forwardUDP(r *udp.ForwarderRequest) {
 
 	idleTime := CONNECTION_IDLE_TIME
 
-	if r.ID().LocalPort == 853 {
+	address := r.ID().LocalAddress.String()
+
+	if r.ID().LocalPort == 853 || ((address == "208.67.222.222" || address == "208.67.222.220" || address == "8.8.8.8" || address == "8.8.4.4" || address == "1.1.1.1" || address == "1.0.0.1") && r.ID().LocalPort == 443) {
 		ep.Close()
 		return
 	}
