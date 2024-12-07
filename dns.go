@@ -202,7 +202,10 @@ func (dq *DNSQuery) read() {
 				plog.Debug("dns resp writing channel is full")
 			}
 			close(session.rch)
+			dq.natMutex.Lock()
 			delete(dq.nat, av.Get("src").AsStr()+av.Get("dst").AsStr())
+			dq.natMutex.Unlock()
+
 		}
 	}
 
